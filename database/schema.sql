@@ -20,6 +20,17 @@ create table if not exists users(
  display_name text not null, phone text, is_verified boolean not null default false,
  is_active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now()
 );
+create table if not exists password_reset_otps(
+ id uuid primary key default gen_random_uuid(),
+ user_id uuid not null references users(id) on delete cascade,
+ otp_hash text not null,
+ expires_at timestamptz not null,
+ attempts smallint not null default 0,
+ consumed_at timestamptz,
+ created_at timestamptz not null default now()
+);
+create index if not exists idx_password_reset_otps_user_created on password_reset_otps(user_id,created_at desc);
+create index if not exists idx_password_reset_otps_expires on password_reset_otps(expires_at);
 create table if not exists sessions(
  id uuid primary key default gen_random_uuid(), user_id uuid not null references users(id) on delete cascade,
  token_hash text not null unique, expires_at timestamptz not null, revoked_at timestamptz, created_at timestamptz not null default now()
