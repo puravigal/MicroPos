@@ -34,6 +34,11 @@
 .invoice-modal{width:min(900px,100%);max-height:94vh;padding:14px;background:#f6f8fc;overflow:auto}.invoice-modal .modal-head{margin:0 0 10px;padding:0 2px}.invoice-modal .modal-head h2{font-size:16px;color:#17213b}
 .invoice-modal .invoice-paper{max-width:820px;margin:0 auto}.invoice-modal .modal-actions{margin-top:12px}
 @media(max-width:760px){.invoice-modal{padding:8px;max-height:96vh}.invoice-modal .invoice-paper{padding:18px 16px}.invoice-modal .invoice-head{grid-template-columns:1fr}.invoice-modal .customer-box{grid-template-columns:1fr}.invoice-modal .invoice-summary{grid-template-columns:1fr}.invoice-modal .payment-box{grid-template-columns:1fr}.invoice-modal .invoice-table{font-size:11px}.invoice-modal .invoice-table th,.invoice-modal .invoice-table td{padding:7px 5px}.invoice-modal .brand-name{font-size:20px}.invoice-modal .invoice-badge{font-size:10px;padding:7px 9px}}
+
+.auth-mode .sidebar,.auth-mode .top,.auth-mode .mobile-nav,.auth-mode #content{visibility:hidden}
+#authRoot{display:none}.auth-mode #authRoot{display:block;position:fixed;inset:0;z-index:300}
+.auth-screen{min-height:100vh;background:linear-gradient(135deg,#f5f8ff 0%,#ffffff 52%,#fff6fb 100%);display:grid;place-items:center;padding:24px}.auth-card{width:min(430px,100%);background:#fff;border:1px solid #e1e7f0;border-radius:20px;box-shadow:0 22px 70px rgba(30,55,100,.12);padding:30px}.auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:26px}.auth-brand .mark{flex:none}.auth-brand b{font-size:20px}.auth-brand small{display:block;color:#7a8598;font-size:10px;margin-top:3px}.auth-title{font-size:25px;letter-spacing:-.02em;margin:0 0 6px}.auth-sub{color:#6d778c;font-size:12px;margin:0 0 22px;line-height:1.5}.auth-form .field{margin:12px 0}.auth-form .field input{padding:11px 12px}.auth-submit{width:100%;padding:11px 14px;margin-top:8px}.auth-links{display:flex;justify-content:space-between;gap:10px;margin-top:15px;font-size:11px}.auth-link{border:0;background:none;color:var(--blue);font-weight:800;padding:0;cursor:pointer}.auth-divider{display:flex;align-items:center;gap:10px;color:#a0a8b6;font-size:10px;margin:20px 0}.auth-divider:before,.auth-divider:after{content:"";height:1px;background:#e6eaf0;flex:1}.auth-demo{width:100%;background:#f7f9fd;border:1px solid #e2e8f2;border-radius:10px;padding:10px;text-align:left;color:#526078;font-size:10px}.auth-demo b{display:block;color:#17213b;margin-bottom:3px}.auth-error{background:#fff4f5;border:1px solid #f1cbd2;color:#b52f49;border-radius:9px;padding:9px 10px;font-size:11px;margin-bottom:12px}.auth-success{background:#effaf5;border:1px solid #ccebdd;color:#14734f;border-radius:9px;padding:9px 10px;font-size:11px;margin-bottom:12px}.auth-check{display:flex;align-items:center;gap:7px;color:#69748a;font-size:10px;margin:9px 0}.auth-check input{width:auto}.auth-back{margin-bottom:14px}.auth-footer{text-align:center;color:#8993a4;font-size:9px;margin-top:22px}
+@media(max-width:600px){.auth-screen{padding:14px}.auth-card{padding:24px 20px;border-radius:16px}}
 </style>
 </head>
 <body>
@@ -45,12 +50,12 @@
 <div class="main">
 <header class="top">
   <input id="globalSearch" class="search" placeholder="Search products, customers, invoices..." oninput="globalSearch(this.value)">
-  <div class="top-right"><button class="store" onclick="openStore()">▣ <span id="storeName">Main Store</span>⌄</button><button class="bell" onclick="showNotifications()">🔔<span class="badge" id="noticeCount">2</span></button><div class="avatar">S</div></div>
+  <div class="top-right"><button class="store" onclick="openStore()">▣ <span id="storeName">Main Store</span>⌄</button><button class="bell" onclick="showNotifications()">🔔<span class="badge" id="noticeCount">2</span></button><button class="avatar" onclick="logout()" title="Account">S</button></div>
 </header>
 <main class="content" id="content"></main>
 </div>
 <nav class="mobile-nav" id="mobileNav"></nav>
-<div id="modalRoot"></div><div id="toastRoot"></div>
+<div id="modalRoot"></div><div id="toastRoot"></div><div id="authRoot"></div>
 <script>
 const seed={
 products:[
@@ -88,6 +93,10 @@ settings:{business:"Puravigal POS Demo",country:"India",state:"Tamil Nadu",curre
 };
 let db=loadDB();
 let state={page:"dashboard",search:"",cart:[],method:"cash",customerId:"",amountReceived:"",global:""};
+let authUser=loadAuthSession();
+let authView="login";
+let authMessage="";
+
 
 const navs=[["dashboard","⌂","Dashboard"],["billing","₹","Billing"],["products","▦","Products"],["inventory","◈","Inventory"],["purchases","↗","Purchases"],["customers","◎","Customers"],["suppliers","◇","Suppliers"],["reports","▥","Reports"],["returns","↩","Returns"],["settings","⚙","Settings"]];
 
@@ -117,6 +126,40 @@ function saveDB(){localStorage.setItem("puravigal-pos-mock",JSON.stringify(db))}
 function money(n){return new Intl.NumberFormat("en-IN",{style:"currency",currency:db.settings.currency||"INR",maximumFractionDigits:2}).format(Number(n)||0)}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function toast(t){document.getElementById("toastRoot").innerHTML="<div class='toast'>"+esc(t)+"</div>";clearTimeout(window._toast);window._toast=setTimeout(()=>document.getElementById("toastRoot").innerHTML="",2300)}
+function loadAuthSession(){try{return JSON.parse(localStorage.getItem("puravigal-auth-session")||"null")}catch(e){return null}}
+function saveAuthSession(u){localStorage.setItem("puravigal-auth-session",JSON.stringify(u));authUser=u}
+function getAuthUsers(){try{const x=JSON.parse(localStorage.getItem("puravigal-auth-users")||"[]");return Array.isArray(x)?x:[]}catch(e){return[]}}
+function saveAuthUsers(users){localStorage.setItem("puravigal-auth-users",JSON.stringify(users))}
+function authEsc(v){return esc(v)}
+function authInput(id,label,type="text",placeholder="",value=""){return "<div class='field'><label>"+label+"</label><input id='"+id+"' type='"+type+"' placeholder='"+authEsc(placeholder)+"' value='"+authEsc(value)+"' autocomplete='"+(type==="password"?"new-password":"on")+"'></div>"}
+function authBrand(){return "<div class='auth-brand'><div class='mark'></div><div><b>Puravigal POS</b><small>Simple. Fast. Reliable.</small></div></div>"}
+function authShell(title,sub,body){return "<div class='auth-screen'><div class='auth-card'>"+authBrand()+title+sub+body+"<div class='auth-footer'>Puravigal POS · Functional UI mock</div></div></div>"}
+function authSetView(v){authView=v;authMessage="";render()}
+function authFeedback(){if(!authMessage)return "";const cls=authMessage.type==="success"?"auth-success":"auth-error";return "<div class='"+cls+"'>"+authEsc(authMessage.text)+"</div>"}
+function loginView(){
+ return authShell("<h1 class='auth-title'>Welcome back</h1><p class='auth-sub'>Sign in to continue to your Puravigal POS workspace.</p>"+authFeedback(),
+ "<form class='auth-form' onsubmit='return handleLogin(event)'>"+authInput("loginEmail","Email address","email","you@business.com")+authInput("loginPassword","Password","password","Enter your password")+
+ "<label class='auth-check'><input id='rememberMe' type='checkbox' checked> Remember me</label><button class='btn primary auth-submit' type='submit'>Sign In</button></form>"+
+ "<div class='auth-links'><button class='auth-link' onclick=\"authSetView('forgot')\" type='button'>Forgot password?</button><span>New business? <button class='auth-link' onclick=\"authSetView('signup')\" type='button'>Create account</button></span></div>"+
+ "<div class='auth-divider'>or</div><button class='auth-demo' onclick='demoLogin()' type='button'><b>Continue with Demo Account</b>demo@puravigal.com · demo123</button>");
+}
+function signupView(){
+ return authShell("<h1 class='auth-title'>Create your account</h1><p class='auth-sub'>Set up your business workspace in a few seconds.</p>"+authFeedback(),
+ "<form class='auth-form' onsubmit='return handleSignup(event)'>"+authInput("signupName","Your name","text","Selva")+authInput("signupBusiness","Business name","text","Your shop or business")+authInput("signupEmail","Work email","email","you@business.com")+authInput("signupPassword","Password","password","Minimum 6 characters")+authInput("signupConfirm","Confirm password","password","Re-enter password")+
+ "<label class='auth-check'><input id='signupAgree' type='checkbox'> I agree to the demo account terms.</label><button class='btn primary auth-submit' type='submit'>Create Account</button></form>"+
+ "<div class='auth-links'><span>Already have an account?</span><button class='auth-link' onclick=\"authSetView('login')\" type='button'>Sign in</button></div>");
+}
+function forgotView(){
+ return authShell("<button class='btn auth-back' onclick=\"authSetView('login')\" type='button'>← Back to sign in</button><h1 class='auth-title'>Reset password</h1><p class='auth-sub'>In the mock, password reset is simulated locally. No email is actually sent.</p>"+authFeedback(),
+ "<form class='auth-form' onsubmit='return handleForgot(event)'>"+authInput("forgotEmail","Account email","email","you@business.com")+authInput("forgotPassword","New password","password","Minimum 6 characters")+authInput("forgotConfirm","Confirm new password","password","Re-enter password")+"<button class='btn primary auth-submit' type='submit'>Reset Password</button></form>");
+}
+function handleLogin(e){e.preventDefault();const email=document.getElementById("loginEmail").value.trim().toLowerCase(),password=document.getElementById("loginPassword").value;if(!email||!password){authMessage={type:"error",text:"Enter your email and password."};return render()}const u=getAuthUsers().find(x=>x.email===email&&x.password===password);if(!u){authMessage={type:"error",text:"Invalid email or password."};return render()}saveAuthSession({name:u.name,email:u.email,business:u.business});authMessage="";render();return false}
+function handleSignup(e){e.preventDefault();const name=document.getElementById("signupName").value.trim(),business=document.getElementById("signupBusiness").value.trim(),email=document.getElementById("signupEmail").value.trim().toLowerCase(),password=document.getElementById("signupPassword").value,confirm=document.getElementById("signupConfirm").value,agree=document.getElementById("signupAgree").checked;if(!name||!business||!email||!password||!confirm){authMessage={type:"error",text:"Complete all fields."};return render()}if(password.length<6){authMessage={type:"error",text:"Password must be at least 6 characters."};return render()}if(password!==confirm){authMessage={type:"error",text:"Passwords do not match."};return render()}if(!agree){authMessage={type:"error",text:"Please accept the demo terms."};return render()}const users=getAuthUsers();if(users.some(x=>x.email===email)){authMessage={type:"error",text:"An account already exists with this email."};return render()}users.push({name,business,email,password});saveAuthUsers(users);saveAuthSession({name,email,business});authMessage="";render();return false}
+function handleForgot(e){e.preventDefault();const email=document.getElementById("forgotEmail").value.trim().toLowerCase(),password=document.getElementById("forgotPassword").value,confirm=document.getElementById("forgotConfirm").value;if(!email||!password||!confirm){authMessage={type:"error",text:"Complete all fields."};return render()}if(password.length<6){authMessage={type:"error",text:"Password must be at least 6 characters."};return render()}if(password!==confirm){authMessage={type:"error",text:"Passwords do not match."};return render()}const users=getAuthUsers(),i=users.findIndex(x=>x.email===email);if(i<0){authMessage={type:"error",text:"No account found for this email."};return render()}users[i].password=password;saveAuthUsers(users);authView="login";authMessage={type:"success",text:"Password reset successfully. Sign in with your new password."};render();return false}
+function demoLogin(){const users=getAuthUsers();if(!users.some(x=>x.email==="demo@puravigal.com")){users.push({name:"Demo User",business:"Puravigal POS Demo",email:"demo@puravigal.com",password:"demo123"});saveAuthUsers(users)}saveAuthSession({name:"Demo User",email:"demo@puravigal.com",business:"Puravigal POS Demo"});render()}
+function logout(){authUser=null;authView="login";authMessage="";localStorage.removeItem("puravigal-auth-session");render()}
+function authRender(){const root=document.getElementById("authRoot");if(authUser){document.body.classList.remove("auth-mode");root.innerHTML="";return}document.body.classList.add("auth-mode");root.innerHTML=authView==="signup"?signupView():authView==="forgot"?forgotView():loginView()}
+
 function nav(){return navs.map(([id,ic,label])=>"<button class='"+(state.page===id?"active":"")+"' onclick=\"setPage('"+id+"')\"><span class='ico'>"+ic+"</span>"+label+"</button>").join("")}
 function setPage(p){state.page=p;state.search="";state.global="";document.getElementById("globalSearch").value="";render()}
 function shell(title,sub,actions){return "<div class='head'><div><p class='eyebrow'>PURAVIGAL POS</p><h1>"+title+"</h1><p>"+sub+"</p></div><div class='actions'>"+(actions||"")+"</div></div>"}
@@ -394,7 +437,7 @@ function validateInvoiceMock(){
    return true;
  }catch(e){console.error("Puravigal invoice self-test failed",e);return false}
 }
-function render(){document.getElementById("nav").innerHTML=nav();document.getElementById("mobileNav").innerHTML=navs.slice(0,5).map(([id,ic,label])=>"<button class='"+(state.page===id?"active":"")+"' onclick=\"setPage('"+id+"')\"><span>"+ic+"</span>"+label+"</button>").join("");document.getElementById("content").innerHTML=page();bindTransactionActions();document.getElementById("storeName").textContent="Main Store";document.getElementById("noticeCount").textContent=db.products.filter(p=>p.stock<=p.reorder).length}
+function render(){authRender();if(!authUser)return;document.getElementById("nav").innerHTML=nav();document.getElementById("mobileNav").innerHTML=navs.slice(0,5).map(([id,ic,label])=>"<button class='"+(state.page===id?"active":"")+"' onclick=\"setPage('"+id+"')\"><span>"+ic+"</span>"+label+"</button>").join("");document.getElementById("content").innerHTML=page();bindTransactionActions();document.getElementById("storeName").textContent="Main Store";document.getElementById("noticeCount").textContent=db.products.filter(p=>p.stock<=p.reorder).length}
 render();
 </script>
 </body>
