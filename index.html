@@ -202,7 +202,42 @@ async function handleForgotVerify(e){
 }
 function demoLogin(){const users=getAuthUsers();if(!users.some(x=>x.email==="demo@puravigal.com")){users.push({name:"Demo User",business:"Puravigal POS Demo",email:"demo@puravigal.com",password:"demo123"});saveAuthUsers(users)}saveAuthSession({name:"Demo User",email:"demo@puravigal.com",business:"Puravigal POS Demo"});render()}
 function openAccountMenu(){const name=authUser?.name||"Account";const email=authUser?.email||"Signed in";openModal("Account","<div class='account-user'><b>"+authEsc(name)+"</b><small>"+authEsc(email)+"</small></div>","<button class='btn' onclick='closeModal();profileSettings()'>⚙ Account Settings</button><button class='btn danger' onclick='closeModal();logout()'>↪ Sign Out</button>")}
-function profileSettings(){toast("Profile settings are coming soon")}
+function profileSettings(){
+ const email=authUser?.email||"";
+ const u=getAuthUsers().find(x=>x.email===email);
+ if(!u)return toast("Account session not found");
+ openModal("Account Settings",
+  "<div class='field'><label>Your Name</label><input id='accName' value='"+authEsc(u.name||"")+"'></div>"+
+  "<div class='field'><label>Business Name</label><input id='accBusiness' value='"+authEsc(u.business||"")+"'></div>"+
+  "<div class='field'><label>Email</label><input id='accEmail' type='email' value='"+authEsc(u.email||"")+"'></div>"+
+  "<div class='field'><label>New Password <span class='muted small'>(optional)</span></label><input id='accPassword' type='password' placeholder='Leave blank to keep current password'></div>"+
+  "<div class='field'><label>Confirm New Password</label><input id='accPasswordConfirm' type='password' placeholder='Re-enter new password'></div>",
+  "<button class='btn' onclick='closeModal()'>Cancel</button><button class='btn primary' onclick='saveAccountSettings()'>Save Changes</button>");
+}
+function saveAccountSettings(){
+ const oldEmail=authUser?.email||"";
+ const users=getAuthUsers();
+ const u=users.find(x=>x.email===oldEmail);
+ if(!u)return toast("Account session not found");
+ const name=document.getElementById("accName").value.trim();
+ const business=document.getElementById("accBusiness").value.trim();
+ const email=document.getElementById("accEmail").value.trim().toLowerCase();
+ const password=document.getElementById("accPassword").value;
+ const confirm=document.getElementById("accPasswordConfirm").value;
+ if(!name||!business||!email)return toast("Name, business and email are required");
+ if(!email.includes("@")||!email.includes("."))return toast("Enter a valid email address");
+ if(email!==oldEmail&&users.some(x=>x.email===email))return toast("An account already exists with this email");
+ if(password||confirm){
+   if(password.length<6)return toast("Password must be at least 6 characters");
+   if(password!==confirm)return toast("Passwords do not match");
+   u.password=password;
+ }
+ u.name=name;u.business=business;u.email=email;
+ saveAuthUsers(users);
+ saveAuthSession({name,email,business});
+ closeModal();
+ toast("Account settings saved");
+}
 function logout(){authUser=null;authView="login";authMessage="";localStorage.removeItem("puravigal-auth-session");render()}
 function authRender(){const root=document.getElementById("authRoot");if(authUser){document.body.classList.remove("auth-mode");root.innerHTML="";return}document.body.classList.add("auth-mode");root.innerHTML=authView==="signup"?signupView():authView==="forgot"?forgotView():loginView()}
 
