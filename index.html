@@ -133,8 +133,8 @@ function saveAuthUsers(users){localStorage.setItem("puravigal-auth-users",JSON.s
 function authEsc(v){return esc(v)}
 function authInput(id,label,type="text",placeholder="",value=""){return "<div class='field'><label>"+label+"</label><input id='"+id+"' type='"+type+"' placeholder='"+authEsc(placeholder)+"' value='"+authEsc(value)+"' autocomplete='"+(type==="password"?"new-password":"on")+"'></div>"}
 function authBrand(){return "<div class='auth-brand'><div class='mark'></div><div><b>Puravigal POS</b><small>Simple. Fast. Reliable.</small></div></div>"}
-function authShell(title,sub,body){return "<div class='auth-screen'><div class='auth-card'>"+authBrand()+title+sub+body+"<div class='auth-footer'>Puravigal POS · Functional UI mock</div></div></div>"}
-function authSetView(v){authView=v;authMessage="";render()}
+function authShell(title,sub,body=""){return "<div class='auth-screen'><div class='auth-card'>"+authBrand()+title+sub+(body||"")+"<div class='auth-footer'>Puravigal POS · Functional UI mock</div></div></div>"}
+function authSetView(v){authView=v;authMessage="";if(v==="forgot"){state.authResetStage="request";state.authResetEmail=""}render()}
 function authFeedback(){if(!authMessage)return "";const cls=authMessage.type==="success"?"auth-success":"auth-error";return "<div class='"+cls+"'>"+authEsc(authMessage.text)+"</div>"}
 function loginView(){
  return authShell("<h1 class='auth-title'>Welcome back</h1><p class='auth-sub'>Sign in to continue to your Puravigal POS workspace.</p>"+authFeedback(),
