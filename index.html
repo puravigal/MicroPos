@@ -113,7 +113,7 @@ function dashboard(){
  "<div class='two'><section class='card'><div class='card-head'><div><h3>Sales Overview</h3><small>Last 7 demo days</small></div><button class='btn' onclick=\"toast('Date filter is UI-ready')\">Last 7 Days⌄</button></div><div class='chart'>"+days.map((x,i)=>"<div class='bar' style='height:"+Math.max(15,Math.min(100,x/80))+"%'><i>"+["01 Oct","02","03","04","05","06","07"][i]+"</i></div>").join("")+"</div></section>"+
  "<section class='card'><div class='card-head'><div><h3>Payment Breakdown</h3><small>Current demo sales</small></div></div><div class='donut-wrap'><div class='donut'></div><div class='legend'><div><i class='dot'></i>UPI · 52%</div><div><i class='dot p'></i>Cash · 24%</div><div><i class='dot l'></i>Card · 16%</div><div><i class='dot' style='background:#dce3ef'></i>Others · 8%</div></div></div></section></div>"+
  "<div class='two'><section class='card'><div class='card-head'><div><h3>Low Stock</h3><small>"+low.length+" items need attention</small></div><button class='btn' onclick=\"setPage('inventory')\">View All →</button></div>"+(low.length?low.map(p=>"<div class='row'><div><b>"+esc(p.name)+"</b><small>"+esc(p.sku)+"</small></div><span class='pill p'>"+p.stock+" left</span></div>").join(""):"<div class='empty'>All products are above reorder level.</div>")+"</section>"+
- "<section class='card'><div class='card-head'><div><h3>Recent Transactions</h3><small>Click any bill to view, print or reprint</small></div><button class='btn' onclick=\"setPage('reports')\">View All →</button></div>"+(db.sales.length?db.sales.slice(-5).reverse().map(x=>"<div class='row transaction-row' role='button' tabindex='0' onclick=\"viewInvoice('"+x.id+"')\" onkeydown=\"if(event.key==='Enter'||event.key===' '){event.preventDefault();viewInvoice('"+x.id+"')}\"><div><b>"+x.id+"</b><small>"+x.date+" · "+esc(x.customer)+" · "+String(x.payment||"").toUpperCase()+"</small></div><div class='transaction-right'><b>"+money(x.total)+"</b><button class='mini-action' onclick=\"event.stopPropagation();viewInvoice('"+x.id+"')\">View & Print</button></div></div>").join(""):"<div class='empty'>No transactions yet.</div>")+"</section></div>";
+ "<section class='card'><div class='card-head'><div><h3>Recent Transactions</h3><small>Click any bill to view, print or reprint</small></div><button class='btn' onclick=\"setPage('reports')\">View All →</button></div>"+(db.sales.length?db.sales.slice(-5).reverse().map(x=>"<div class='row transaction-row' role='button' tabindex='0' data-invoice='"+esc(x.id)+"'><div><b>"+esc(x.id)+"</b><small>"+esc(x.date)+" · "+esc(x.customer)+" · "+String(x.payment||"").toUpperCase()+"</small></div><div class='transaction-right'><b>"+money(x.total)+"</b><button type='button' class='mini-action' data-invoice='"+esc(x.id)+"'>View & Print</button></div></div>").join(""):"<div class='empty'>No transactions yet.</div>")+"</section></div>";
 }
 function taxBreakdown(){
  const taxable=state.cart.reduce((s,x)=>s+x.price*x.qty,0);
@@ -319,7 +319,28 @@ function globalSearch(q){state.global=q.trim();if(!q){if(state.page!=="dashboard
 function barcodePrompt(){const b=prompt("Enter product barcode");if(!b)return;const p=db.products.find(x=>x.barcode===b);if(!p)return toast("Barcode not found");addCart(p.id)}
 function openStore(){openModal("Store","<div class='row'><div><b>Main Store</b><small>Current demo location · India</small></div><span class='pill g'>Active</span></div><div class='row'><div><b>Branch Store</b><small>Demo option for multi-store UI</small></div><button class='btn' onclick=\"toast('Store switching is ready for API integration');closeModal()\">Select</button></div>")}
 function showNotifications(){openModal("Notifications","<div class='row'><div><b>Low stock alert</b><small>Cooking Oil 1L and Bread Loaf need attention.</small></div><span class='pill p'>Stock</span></div><div class='row'><div><b>Demo mode</b><small>API is not connected. All changes are stored in this browser.</small></div><span class='pill a'>Mock</span></div>")}
-function render(){document.getElementById("nav").innerHTML=nav();document.getElementById("mobileNav").innerHTML=navs.slice(0,5).map(([id,ic,label])=>"<button class='"+(state.page===id?"active":"")+"' onclick=\"setPage('"+id+"')\"><span>"+ic+"</span>"+label+"</button>").join("");document.getElementById("content").innerHTML=page();document.getElementById("storeName").textContent="Main Store";document.getElementById("noticeCount").textContent=db.products.filter(p=>p.stock<=p.reorder).length}
+function bindTransactionActions(){
+ const root=document.getElementById("content");
+ if(!root||root.dataset.transactionBound==="1")return;
+ root.dataset.transactionBound="1";
+ root.addEventListener("click",e=>{
+   const el=e.target.closest("[data-invoice]");
+   if(!el||!root.contains(el))return;
+   e.preventDefault();
+   e.stopPropagation();
+   const id=el.getAttribute("data-invoice");
+   try{viewInvoice(id)}catch(err){console.error(err);toast("Unable to open "+id)}
+ });
+ root.addEventListener("keydown",e=>{
+   if((e.key==="Enter"||e.key===" ")&&e.target.closest(".transaction-row")){
+     e.preventDefault();
+     const row=e.target.closest(".transaction-row");
+     const id=row&&row.getAttribute("data-invoice");
+     if(id)try{viewInvoice(id)}catch(err){console.error(err);toast("Unable to open "+id)}
+   }
+ });
+}
+function render(){document.getElementById("nav").innerHTML=nav();document.getElementById("mobileNav").innerHTML=navs.slice(0,5).map(([id,ic,label])=>"<button class='"+(state.page===id?"active":"")+"' onclick=\"setPage('"+id+"')\"><span>"+ic+"</span>"+label+"</button>").join("");document.getElementById("content").innerHTML=page();bindTransactionActions();document.getElementById("storeName").textContent="Main Store";document.getElementById("noticeCount").textContent=db.products.filter(p=>p.stock<=p.reorder).length}
 render();
 </script>
 </body>
