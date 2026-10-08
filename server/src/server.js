@@ -27,6 +27,7 @@ const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 600, standardHeade
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false });
 
 app.disable("x-powered-by");
+app.set("trust proxy", 1);
 app.use(helmet());
 app.use(cors({
   origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map(function(x){return x.trim();}) : true,
