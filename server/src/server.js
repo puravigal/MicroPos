@@ -8,9 +8,14 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "node:crypto";
 import pg from "pg";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
 const { Pool } = pg;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const FRONTEND_DIST = path.resolve(__dirname, "../../dist");
 const app = express();
 const pool = process.env.DATABASE_URL ? new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -755,6 +760,15 @@ app.post("/api/offline/sync",auth,async function(req,res){
   return ok(res,{results:results});
 });
 
+app.use(express.static(FRONTEND_DIST,{index:"index.html"}));
+app.use(function(req,res,next){
+  if(req.method==="GET" && req.accepts("html")){
+    return res.sendFile(path.join(FRONTEND_DIST,"index.html"),function(err){
+      if(err) return next();
+    });
+  }
+  return next();
+});
 app.use(function(err,req,res,next){console.error(err);return fail(res,500,"INTERNAL_ERROR","Something went wrong.");});
 const port=Number(process.env.PORT || 4000);
 app.listen(port,function(){console.log("Puravigal POS API listening on :"+port);});
