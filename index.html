@@ -73,7 +73,28 @@ let state={page:"dashboard",search:"",cart:[],method:"cash",customerId:"",amount
 
 const navs=[["dashboard","⌂","Dashboard"],["billing","₹","Billing"],["products","▦","Products"],["inventory","◈","Inventory"],["purchases","↗","Purchases"],["customers","◎","Customers"],["suppliers","◇","Suppliers"],["reports","▥","Reports"],["returns","↩","Returns"],["settings","⚙","Settings"]];
 
-function loadDB(){try{const x=JSON.parse(localStorage.getItem("puravigal-pos-mock"));return x||structuredClone(seed)}catch(e){return structuredClone(seed)}}
+function cloneSeed(){return JSON.parse(JSON.stringify(seed))}
+function loadDB(){
+  try{
+    const raw=localStorage.getItem("puravigal-pos-mock");
+    if(!raw)return cloneSeed();
+    const x=JSON.parse(raw);
+    const d=cloneSeed();
+    if(!x||typeof x!=="object")return d;
+    d.products=Array.isArray(x.products)?x.products:d.products;
+    d.customers=Array.isArray(x.customers)?x.customers:d.customers;
+    d.suppliers=Array.isArray(x.suppliers)?x.suppliers:d.suppliers;
+    d.sales=Array.isArray(x.sales)?x.sales:d.sales;
+    d.purchases=Array.isArray(x.purchases)?x.purchases:d.purchases;
+    d.returns=Array.isArray(x.returns)?x.returns:d.returns;
+    d.activity=Array.isArray(x.activity)?x.activity:d.activity;
+    d.settings=Object.assign(d.settings,x.settings&&typeof x.settings==="object"?x.settings:{});
+    return d;
+  }catch(e){
+    localStorage.removeItem("puravigal-pos-mock");
+    return cloneSeed();
+  }
+}
 function saveDB(){localStorage.setItem("puravigal-pos-mock",JSON.stringify(db))}
 function money(n){return new Intl.NumberFormat("en-IN",{style:"currency",currency:db.settings.currency||"INR",maximumFractionDigits:2}).format(Number(n)||0)}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
@@ -223,7 +244,7 @@ function openReturnModal(invoice){
 function saveReturn(invoice){const s=db.sales.find(x=>x.id===invoice);let amount=0;s.items.forEach((i,idx)=>{const q=Math.min(i.qty,Math.max(0,Number(document.getElementById("retQty"+idx).value)||0));if(q){const p=db.products.find(p=>p.id===i.productId);if(p)p.stock+=q;amount+=q*i.price}});if(!amount)return toast("Enter a return quantity");const id="RET-"+String(8+db.returns.length).padStart(4,"0");db.returns.push({id,date:"08 Oct 2026",invoice,amount,status:"Completed"});saveDB();closeModal();toast(id+" completed · stock restored");render()}
 function viewReturn(id){const r=db.returns.find(x=>x.id===id);openModal(id,"<div class='row'><span>Invoice</span><b>"+r.invoice+"</b></div><div class='row'><span>Refund</span><b>"+money(r.amount)+"</b></div><div class='row'><span>Status</span><span class='pill g'>"+r.status+"</span></div>")}
 function saveSettings(){db.settings.business=document.getElementById("setBusiness").value.trim()||"Puravigal POS Demo";db.settings.country=document.getElementById("setCountry").value;db.settings.currency=document.getElementById("setCurrency").value;db.settings.timezone=document.getElementById("setTimezone").value;db.settings.tax=Number(document.getElementById("setTax").value)||0;db.settings.prefix=document.getElementById("setPrefix").value.trim()||"INV";saveDB();document.getElementById("storeName").textContent="Main Store";toast("Settings saved")}
-function resetDemo(){if(!confirm("Reset all mock data?"))return;db=structuredClone(seed);saveDB();state={page:"dashboard",search:"",cart:[],method:"cash",customerId:"",amountReceived:"",global:""};closeModal();toast("Demo data reset");render()}
+function resetDemo(){if(!confirm("Reset all mock data?"))return;db=cloneSeed();saveDB();state={page:"dashboard",search:"",cart:[],method:"cash",customerId:"",amountReceived:"",global:""};closeModal();toast("Demo data reset");render()}
 function exportCSV(type){let rows=[],name=type+".csv";if(type==="products"){rows=[["Name","SKU","Category","Stock","Cost","Price"],...db.products.map(p=>[p.name,p.sku,p.category,p.stock,p.cost,p.price])]}else if(type==="customers"){rows=[["Name","Phone","Email","Outstanding"],...db.customers.map(c=>[c.name,c.phone,c.email,c.outstanding])]}else{rows=[["Invoice","Date","Customer","Total","Payment"],...db.sales.map(s=>[s.id,s.date,s.customer,s.total,s.payment])]}const csv=rows.map(r=>r.map(v=>'\"'+String(v).replaceAll('\"','\"\"')+'\"').join(",")).join("\\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download=name;a.click();URL.revokeObjectURL(a.href);toast("CSV exported")}
 function globalSearch(q){state.global=q.trim();if(!q){if(state.page!=="dashboard")render();return}const x=q.toLowerCase();const p=db.products.find(p=>(p.name+" "+p.sku+" "+p.barcode).toLowerCase().includes(x));if(p){setPage("products");state.search=q;render();return}const c=db.customers.find(c=>(c.name+" "+c.phone).toLowerCase().includes(x));if(c){setPage("customers");state.search=q;render();return}const s=db.sales.find(s=>s.id.toLowerCase().includes(x));if(s){viewInvoice(s.id);return}toast("No matching product, customer or invoice")}
 function barcodePrompt(){const b=prompt("Enter product barcode");if(!b)return;const p=db.products.find(x=>x.barcode===b);if(!p)return toast("Barcode not found");addCart(p.id)}
