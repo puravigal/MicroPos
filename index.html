@@ -201,8 +201,8 @@ async function handleForgotVerify(e){
  return false;
 }
 function demoLogin(){const users=getAuthUsers();if(!users.some(x=>x.email==="demo@puravigal.com")){users.push({name:"Demo User",business:"Puravigal POS Demo",email:"demo@puravigal.com",password:"demo123"});saveAuthUsers(users)}saveAuthSession({name:"Demo User",email:"demo@puravigal.com",business:"Puravigal POS Demo"});render()}
-function openAccountMenu(){const name=authUser?.name||"Account";const email=authUser?.email||"Signed in";openModal("Account","<div class='account-user'><b>"+authEsc(name)+"</b><small>"+authEsc(email)+"</small></div>","<button class='btn' onclick='closeModal();toast("Profile settings are coming soon")'>⚙ Account Settings</button><button class='btn danger' onclick='closeModal();logout()'>↪ Sign Out</button>")}
-function logout(){authUser=null;authView="login";authMessage="";localStorage.removeItem("puravigal-auth-session");render()}
+function openAccountMenu(){const name=authUser?.name||"Account";const email=authUser?.email||"Signed in";openModal("Account","<div class='account-user'><b>"+authEsc(name)+"</b><small>"+authEsc(email)+"</small></div>","<button class='btn' onclick='closeModal();profileSettings()'>⚙ Account Settings</button><button class='btn danger' onclick='closeModal();logout()'>↪ Sign Out</button>")}
+function profileSettings(){toast("Profile settings are coming soon")}\nfunction logout(){authUser=null;authView="login";authMessage="";localStorage.removeItem("puravigal-auth-session");render()}
 function authRender(){const root=document.getElementById("authRoot");if(authUser){document.body.classList.remove("auth-mode");root.innerHTML="";return}document.body.classList.add("auth-mode");root.innerHTML=authView==="signup"?signupView():authView==="forgot"?forgotView():loginView()}
 
 function nav(){return navs.map(([id,ic,label])=>"<button class='"+(state.page===id?"active":"")+"' onclick=\"setPage('"+id+"')\"><span class='ico'>"+ic+"</span>"+label+"</button>").join("")}
