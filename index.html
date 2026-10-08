@@ -227,7 +227,7 @@ function checkout(){
  saveDB();toast(invoice+" completed successfully");viewInvoice(invoice);state.cart=[];state.amountReceived="";state.customerId="";render();
 }
 function amountWords(n){
- const x=Math.round(Number(n)||0);
+ let x=Math.round(Number(n)||0);
  const ones=["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
  const tens=["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
  function two(v){return v<20?ones[v]:tens[Math.floor(v/10)]+(v%10?" "+ones[v%10]:"")}
@@ -243,9 +243,11 @@ function amountWords(n){
 function invoiceData(s){
  const customer=db.customers.find(c=>c.id===s.customerId)||db.customers.find(c=>c.name===s.customer);
  const rawItems=Array.isArray(s.items)?s.items:[];
- const items=rawItems.map((i,idx)=>{const p=db.products.find(p=>String(p.id)===String(i.productId))||{};const qty=Number(i.qty)||0;const price=Number(i.price)||0;return{n:idx+1,name:p.name||i.name||"Item",sku:p.sku||i.sku||"",hsn:p.hsn||i.hsn||"—",unit:p.unit||i.unit||"",qty,price,tax:Number(i.tax||0),amount:price*qty}});
+ const items=rawItems.map((i,idx)=>{const p=db.products.find(p=>String(p.id)===String(i.productId))||{};const qty=Number(i.qty)||0;const price=Number(i.price)||0;const tax=Number(i.tax??p.tax??db.settings.tax??0)||0;return{n:idx+1,name:p.name||i.name||"Item",sku:p.sku||i.sku||"",hsn:p.hsn||i.hsn||"—",unit:p.unit||i.unit||"",qty,price,tax,amount:price*qty}});
  const taxable=Number(s.taxable??items.reduce((a,i)=>a+i.amount,0));
- const gst=Number(s.gst??0),cgst=Number(s.cgst??(s.taxMode==="INTRA"?gst/2:0)),sgst=Number(s.sgst??(s.taxMode==="INTRA"?gst/2:0)),igst=Number(s.igst??(s.taxMode==="INTER"?gst:0));
+ const calculatedGst=items.reduce((a,i)=>a+(i.amount*i.tax/100),0);
+ const gst=Number(s.gst??calculatedGst);
+ const cgst=Number(s.cgst??(s.taxMode==="INTRA"?gst/2:0)),sgst=Number(s.sgst??(s.taxMode==="INTRA"?gst/2:0)),igst=Number(s.igst??(s.taxMode==="INTER"?gst:0));
  return{customer,items,taxable,gst,cgst,sgst,igst,total:Number(s.total||taxable+gst),payment:(s.payment||"cash").toUpperCase(),taxMode:s.taxMode||"INTRA",gstin:s.gstin||"",place:s.placeOfSupply||(customer&&customer.state)||db.settings.state||"Tamil Nadu"};
 }
 function invoiceHTML(s){
@@ -364,6 +366,15 @@ function bindTransactionActions(){
      if(id)try{viewInvoice(id)}catch(err){console.error(err);toast("Unable to open "+id)}
    }
  });
+}
+function validateInvoiceMock(){
+ try{
+   for(const s of db.sales.slice(0,5)){
+     const html=invoiceHTML(s);
+     if(!html||!html.includes("TAX INVOICE"))throw new Error("Invoice HTML empty for "+s.id);
+   }
+   return true;
+ }catch(e){console.error("Puravigal invoice self-test failed",e);return false}
 }
 function render(){document.getElementById("nav").innerHTML=nav();document.getElementById("mobileNav").innerHTML=navs.slice(0,5).map(([id,ic,label])=>"<button class='"+(state.page===id?"active":"")+"' onclick=\"setPage('"+id+"')\"><span>"+ic+"</span>"+label+"</button>").join("");document.getElementById("content").innerHTML=page();bindTransactionActions();document.getElementById("storeName").textContent="Main Store";document.getElementById("noticeCount").textContent=db.products.filter(p=>p.stock<=p.reorder).length}
 render();
