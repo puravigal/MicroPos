@@ -263,13 +263,26 @@ function invoiceHTML(s){
 function findSale(id){return db.sales.find(x=>String(x.id)===String(id))}
 function viewInvoice(id){
  const s=findSale(id);
- if(!s)return toast("Invoice "+id+" not found");
+ if(!s){toast("Invoice "+id+" not found");return}
  try{
-   const html=invoiceHTML(s);
-   openModal("Invoice "+esc(s.id),html,"<button class='btn' onclick='printInvoice(\""+esc(s.id)+"\")'>Print Invoice</button><button class='btn primary' onclick='closeModal()'>Done</button>");
+   const body=invoiceHTML(s);
+   const root=document.getElementById("modalRoot");
+   if(!root)throw new Error("Invoice modal container is missing");
+   root.innerHTML="";
+   const backdrop=document.createElement("div");
+   backdrop.className="modal-backdrop";
+   const modal=document.createElement("div");
+   modal.className="modal";
+   modal.innerHTML="<div class='modal-head'><h2>Invoice "+esc(s.id)+"</h2><button class='close' type='button'>×</button></div>"+body+"<div class='modal-actions'><button class='btn' type='button' id='invoicePrintBtn'>Print Invoice</button><button class='btn primary' type='button' id='invoiceDoneBtn'>Done</button></div>";
+   backdrop.appendChild(modal);root.appendChild(backdrop);
+   modal.querySelector(".close").addEventListener("click",closeModal);
+   modal.querySelector("#invoiceDoneBtn").addEventListener("click",closeModal);
+   modal.querySelector("#invoicePrintBtn").addEventListener("click",()=>printInvoice(s.id));
+   backdrop.addEventListener("click",e=>{if(e.target===backdrop)closeModal()});
  }catch(err){
-   console.error("Invoice render failed",err,s);
-   toast("Unable to open "+String(id));
+   console.error("Invoice render failed:",err,s);
+   const detail=err&&err.message?err.message:"Unknown invoice error";
+   toast("Invoice could not be opened: "+detail);
  }
 }
 function printInvoice(id){
