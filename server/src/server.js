@@ -54,7 +54,7 @@ async function sendPasswordResetOtpEmail(to,otp){
   if(!apiKey || !from) throw Object.assign(new Error("Email provider is not configured"),{code:"EMAIL_NOT_CONFIGURED"});
   const response=await fetch("https://api.resend.com/emails",{
     method:"POST",
-    headers:{"Content-Type":"application/json","Authorization:"Bearer "+apiKey},
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+apiKey},
     body:JSON.stringify({
       from:from,
       to:[to],
