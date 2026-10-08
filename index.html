@@ -150,12 +150,56 @@ function signupView(){
  "<div class='auth-links'><span>Already have an account?</span><button class='auth-link' onclick=\"authSetView('login')\" type='button'>Sign in</button></div>");
 }
 function forgotView(){
- return authShell("<button class='btn auth-back' onclick=\"authSetView('login')\" type='button'>← Back to sign in</button><h1 class='auth-title'>Reset password</h1><p class='auth-sub'>In the mock, password reset is simulated locally. No email is actually sent.</p>"+authFeedback(),
- "<form class='auth-form' onsubmit='return handleForgot(event)'>"+authInput("forgotEmail","Account email","email","you@business.com")+authInput("forgotPassword","New password","password","Minimum 6 characters")+authInput("forgotConfirm","Confirm new password","password","Re-enter password")+"<button class='btn primary auth-submit' type='submit'>Reset Password</button></form>");
+ const stage=state.authResetStage||"request";
+ if(stage==="verify"){
+   return authShell("<button class='btn auth-back' onclick="authSetView('forgot');state.authResetStage='request';render()" type='button'>← Change email</button><h1 class='auth-title'>Enter verification code</h1><p class='auth-sub'>We sent a 6-digit OTP to <b>"+authEsc(state.authResetEmail||"your email")+"</b>. The code expires in 10 minutes.</p>"+authFeedback(),
+   "<form class='auth-form' onsubmit='return handleForgotVerify(event)'>"+authInput("forgotOtp","OTP","text","6-digit code")+authInput("forgotPassword","New password","password","Minimum 6 characters")+authInput("forgotConfirm","Confirm new password","password","Re-enter password")+"<button class='btn primary auth-submit' type='submit'>Verify & Reset Password</button></form>"+
+   "<div class='auth-links'><button class='auth-link' onclick='return resendPasswordOtp()' type='button'>Resend OTP</button><button class='auth-link' onclick="authSetView('login')" type='button'>Back to sign in</button></div>");
+ }
+ return authShell("<button class='btn auth-back' onclick="authSetView('login')" type='button'>← Back to sign in</button><h1 class='auth-title'>Reset password</h1><p class='auth-sub'>Enter your account email. We'll send a 6-digit OTP to your inbox.</p>"+authFeedback(),
+ "<form class='auth-form' onsubmit='return handleForgotRequest(event)'>"+authInput("forgotEmail","Account email","email","you@business.com")+"<button class='btn primary auth-submit' type='submit'>Send OTP</button></form>");
 }
 function handleLogin(e){e.preventDefault();const email=document.getElementById("loginEmail").value.trim().toLowerCase(),password=document.getElementById("loginPassword").value;if(!email||!password){authMessage={type:"error",text:"Enter your email and password."};return render()}const u=getAuthUsers().find(x=>x.email===email&&x.password===password);if(!u){authMessage={type:"error",text:"Invalid email or password."};return render()}saveAuthSession({name:u.name,email:u.email,business:u.business});authMessage="";render();return false}
 function handleSignup(e){e.preventDefault();const name=document.getElementById("signupName").value.trim(),business=document.getElementById("signupBusiness").value.trim(),email=document.getElementById("signupEmail").value.trim().toLowerCase(),password=document.getElementById("signupPassword").value,confirm=document.getElementById("signupConfirm").value,agree=document.getElementById("signupAgree").checked;if(!name||!business||!email||!password||!confirm){authMessage={type:"error",text:"Complete all fields."};return render()}if(password.length<6){authMessage={type:"error",text:"Password must be at least 6 characters."};return render()}if(password!==confirm){authMessage={type:"error",text:"Passwords do not match."};return render()}if(!agree){authMessage={type:"error",text:"Please accept the demo terms."};return render()}const users=getAuthUsers();if(users.some(x=>x.email===email)){authMessage={type:"error",text:"An account already exists with this email."};return render()}users.push({name,business,email,password});saveAuthUsers(users);saveAuthSession({name,email,business});authMessage="";render();return false}
-function handleForgot(e){e.preventDefault();const email=document.getElementById("forgotEmail").value.trim().toLowerCase(),password=document.getElementById("forgotPassword").value,confirm=document.getElementById("forgotConfirm").value;if(!email||!password||!confirm){authMessage={type:"error",text:"Complete all fields."};return render()}if(password.length<6){authMessage={type:"error",text:"Password must be at least 6 characters."};return render()}if(password!==confirm){authMessage={type:"error",text:"Passwords do not match."};return render()}const users=getAuthUsers(),i=users.findIndex(x=>x.email===email);if(i<0){authMessage={type:"error",text:"No account found for this email."};return render()}users[i].password=password;saveAuthUsers(users);authView="login";authMessage={type:"success",text:"Password reset successfully. Sign in with your new password."};render();return false}
+const AUTH_API_URL=(window.PURAVIGAL_API_URL||localStorage.getItem("puravigal-api-url")||"").replace(/\/$/,"");
+async function authApi(path,body){
+ const response=await fetch(AUTH_API_URL+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+ let data={};try{data=await response.json()}catch(e){}
+ if(!response.ok)throw new Error(data?.error?.message||"Unable to contact the authentication service.");
+ return data;
+}
+async function requestPasswordOtp(email){
+ try{
+   await authApi("/api/auth/password-reset/request",{email:email});
+   state.authResetEmail=email;state.authResetStage="verify";authMessage={type:"success",text:"OTP sent. Check your email and enter the 6-digit code."};render();
+ }catch(e){authMessage={type:"error",text:e.message};render()}
+}
+function handleForgotRequest(e){
+ e.preventDefault();
+ const email=document.getElementById("forgotEmail").value.trim().toLowerCase();
+ if(!email){authMessage={type:"error",text:"Enter your account email."};return render()}
+ requestPasswordOtp(email);
+ return false;
+}
+async function resendPasswordOtp(){
+ const email=state.authResetEmail;
+ if(!email){state.authResetStage="request";return render()}
+ authMessage="";
+ await requestPasswordOtp(email);
+ return false;
+}
+async function handleForgotVerify(e){
+ e.preventDefault();
+ const email=state.authResetEmail,otp=document.getElementById("forgotOtp").value.trim(),password=document.getElementById("forgotPassword").value,confirm=document.getElementById("forgotConfirm").value;
+ if(!/^\d{6}$/.test(otp)){authMessage={type:"error",text:"Enter the 6-digit OTP from your email."};return render()}
+ if(password.length<6){authMessage={type:"error",text:"Password must be at least 6 characters."};return render()}
+ if(password!==confirm){authMessage={type:"error",text:"Passwords do not match."};return render()}
+ try{
+   await authApi("/api/auth/password-reset/verify",{email,otp,new_password:password});
+   state.authResetEmail="";state.authResetStage="request";authView="login";authMessage={type:"success",text:"Password reset successfully. Please sign in with your new password."};render();
+ }catch(e){authMessage={type:"error",text:e.message};render()}
+ return false;
+}
 function demoLogin(){const users=getAuthUsers();if(!users.some(x=>x.email==="demo@puravigal.com")){users.push({name:"Demo User",business:"Puravigal POS Demo",email:"demo@puravigal.com",password:"demo123"});saveAuthUsers(users)}saveAuthSession({name:"Demo User",email:"demo@puravigal.com",business:"Puravigal POS Demo"});render()}
 function logout(){authUser=null;authView="login";authMessage="";localStorage.removeItem("puravigal-auth-session");render()}
 function authRender(){const root=document.getElementById("authRoot");if(authUser){document.body.classList.remove("auth-mode");root.innerHTML="";return}document.body.classList.add("auth-mode");root.innerHTML=authView==="signup"?signupView():authView==="forgot"?forgotView():loginView()}
