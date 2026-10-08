@@ -1,5 +1,5 @@
 
-const API_URL=(import.meta.env.VITE_API_URL || "https://micropos-t0bg.onrender.com").replace(/\/$/,"");
+const API_URL=(import.meta.env.VITE_API_URL || (window.location.hostname==="localhost" ? "http://localhost:4000" : window.location.origin)).replace(/\/$/,"");
 const ACCESS_KEY="puravi_access";
 const REFRESH_KEY="puravi_refresh";
 
