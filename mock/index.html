@@ -140,19 +140,19 @@ function billing(){
  const customerInfo=selected?(selected.gstRegistered
    ? "<div class='notice' style='margin-top:8px'><b>GST Registered · "+esc(selected.gstin)+"</b><br>"+esc(selected.state||"")+" · "+(b.sameState?"Intra-state → CGST + SGST":"Inter-state → IGST")+"</div>"
    : "<div class='notice' style='margin-top:8px'>B2C / Unregistered customer · "+esc(selected.state||"")+"</div>"):"<div class='notice' style='margin-top:8px'>Walk-in / B2C · GST charged based on product tax rate</div>";
- return shell("Fast billing","Search, add items, collect payment and finish the bill.","<button class='btn' onclick="barcodePrompt()">⌕ Barcode Scanner</button><button class='btn' onclick="clearCart()">Clear Bill</button>")+
+ return shell("Fast billing","Search, add items, collect payment and finish the bill.","<button class='btn' onclick='barcodePrompt()'>⌕ Barcode Scanner</button><button class='btn' onclick='clearCart()'>Clear Bill</button>")+
  "<div class='pos'><section class='card'><div class='card-head'><div><h3>Products</h3><small>Click a product to add it to the bill</small></div><span class='pill'>"+list.length+" results</span></div>"+
- "<input class='search' style='width:100%;margin-bottom:12px' placeholder='Search name, SKU or barcode...' value='"+esc(state.search)+"' oninput="state.search=this.value;render()">"+
+ "<input class='search' style='width:100%;margin-bottom:12px' placeholder='Search name, SKU or barcode...' value='"+esc(state.search)+"' oninput='state.search=this.value;render()'>"+
  "<div class='product-grid'>"+(list.length?list.map(p=>"<button class='product' onclick='addCart("+p.id+")' "+(p.stock<=0?"disabled":"")+"><strong>"+esc(p.name)+"</strong><small>"+esc(p.sku)+" · Stock "+p.stock+" · GST "+(p.tax??db.settings.tax)+"%</small><b>"+money(p.price)+"</b></button>").join(""):"<div class='empty' style='grid-column:1/-1'>No products found.</div>")+"</div>"+
  "<div class='cart'>"+(state.cart.length?state.cart.map(x=>"<div class='cart-line'><div><b>"+esc(x.name)+"</b><small>"+money(x.price)+" each · "+(x.tax??db.settings.tax)+"% GST</small></div><div class='qty'><button onclick='changeQty("+x.id+",-1)'>−</button><b>"+x.qty+"</b><button onclick='changeQty("+x.id+",1)'>+</button></div><b>"+money(x.price*x.qty)+"</b></div>").join(""):"<div class='empty'>Your bill is empty. Add a product to begin.</div>")+"</div></section>"+
  "<aside class='card'><div class='card-head'><h3>New Bill</h3><span class='pill'>"+(selected&&selected.gstRegistered?"B2B":"B2C")+"</span></div>"+
  "<div class='field'><label>Customer</label><select onchange='state.customerId=this.value;render()'><option value=''>Walk-in Customer</option>"+db.customers.map(c=>"<option value='"+c.id+"' "+(String(state.customerId)===String(c.id)?"selected":"")+">"+esc(c.name)+" · "+esc(c.phone)+(c.gstRegistered?" · GST":"")+"</option>").join("")+"</select></div>"+customerInfo+
  "<div class='totals'><div>Taxable Value <b>"+money(b.taxable)+"</b></div>"+gstRows(b)+"<div>GST Total <b>"+money(b.gst)+"</b></div><div class='grand'>Invoice Total <b>"+money(total)+"</b></div></div>"+
- "<div class='pay'>"+["cash","upi","card","bank","other"].map(m=>"<button class='"+(state.method===m?"active":"")+"' onclick="state.method='"+m+"';render()">"+m.toUpperCase()+"</button>").join("")+"</div>"+
+ "<div class='pay'>"+["cash","upi","card","bank","other"].map(m=>"<button class='"+(state.method===m?"active":"")+"' data-method='"+m+"' onclick='state.method=this.dataset.method;render()'>"+m.toUpperCase()+"</button>").join("")+"</div>"+
  "<div class='field'><label>Amount Received</label><input type='number' min='0' value='"+esc(state.amountReceived)+"' oninput='state.amountReceived=this.value' placeholder='"+total.toFixed(2)+"'></div>"+
  "<div class='row'><span>Change</span><b>"+money(Math.max(0,(Number(state.amountReceived)||0)-total))+"</b></div>"+
  "<button class='btn primary' style='width:100%;margin-top:10px' onclick='checkout()'>Pay & Print · "+money(total)+"</button>"+
- "<div style='display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px'><button class='btn' onclick="openCustomerModal()">＋ Customer</button><button class='btn pink' onclick="setPage('returns')">↩ Return</button></div></aside></div>";
+ "<div style='display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px'><button class='btn' onclick='openCustomerModal()'>＋ Customer</button><button class='btn pink' onclick='setPage(\"returns\")'>↩ Return</button></div></aside></div>";
 }
 function productRows(){
  const q=state.search.toLowerCase();const a=db.products.filter(p=>(p.name+" "+p.sku+" "+p.category).toLowerCase().includes(q));
