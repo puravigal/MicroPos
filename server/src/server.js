@@ -47,6 +47,28 @@ function accessToken(user, orgId, role){
 }
 function hashToken(value){ return crypto.createHash("sha256").update(value).digest("hex"); }
 function newRefreshToken(){ return crypto.randomBytes(48).toString("base64url"); }
+function newPasswordResetOtp(){ return String(crypto.randomInt(100000,1000000)); }
+async function sendPasswordResetOtpEmail(to,otp){
+  const apiKey=process.env.RESEND_API_KEY;
+  const from=process.env.RESEND_FROM_EMAIL;
+  if(!apiKey || !from) throw Object.assign(new Error("Email provider is not configured"),{code:"EMAIL_NOT_CONFIGURED"});
+  const response=await fetch("https://api.resend.com/emails",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization:"Bearer "+apiKey},
+    body:JSON.stringify({
+      from:from,
+      to:[to],
+      subject:"Your Puravigal POS password reset OTP",
+      html:"<div style=\"font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#17213b\"><h2>Puravigal POS</h2><p>Use this OTP to reset your password:</p><div style=\"font-size:32px;font-weight:800;letter-spacing:8px;padding:16px;background:#f3f6ff;border-radius:10px;text-align:center\">"+otp+"</div><p>This OTP expires in 10 minutes. If you did not request a password reset, you can safely ignore this email.</p></div>",
+      tags:[{name:"category",value:"password_reset"}]
+    })
+  });
+  if(!response.ok){
+    const body=await response.text().catch(function(){return "";});
+    throw Object.assign(new Error("Email provider rejected the message"),{code:"EMAIL_SEND_FAILED",details:body.slice(0,500)});
+  }
+  return response.json();
+}
 async function issueSession(client,user,orgId,role){
   const refresh = newRefreshToken();
   const expires = new Date(Date.now() + REFRESH_DAYS * 86400000);
@@ -195,6 +217,59 @@ app.post("/api/auth/signup",authLimiter,async function(req,res){
     if(e.code==="EMAIL_EXISTS") return fail(res,409,"EMAIL_EXISTS","An account with this email already exists.");
     console.error(e); return fail(res,500,"SIGNUP_FAILED","Unable to create the account.");
   }
+});
+
+app.post("/api/auth/password-reset/request",authLimiter,async function(req,res){
+  if(!requireDb(res)) return;
+  const p=z.object({email:z.string().email()}).safeParse(req.body);
+  if(!p.success) return fail(res,400,"VALIDATION_ERROR","A valid email is required.");
+  try{
+    const email=p.data.email.toLowerCase();
+    const q=await pool.query("select id,email,display_name from users where lower(email)=lower($1) and is_active=true limit 1",[email]);
+    if(!q.rowCount) return ok(res,{ok:true,message:"If an account exists, an OTP has been sent to that email."});
+    const user=q.rows[0];
+    const otp=newPasswordResetOtp();
+    const otpHash=hashToken(otp);
+    await pool.query("update password_reset_otps set consumed_at=coalesce(consumed_at,now()) where user_id=$1 and consumed_at is null",[user.id]);
+    await pool.query("insert into password_reset_otps(user_id,otp_hash,expires_at) values($1,$2,now()+interval '10 minutes')",[user.id,otpHash]);
+    try{
+      await sendPasswordResetOtpEmail(user.email,otp);
+    }catch(emailError){
+      await pool.query("update password_reset_otps set consumed_at=now() where user_id=$1 and otp_hash=$2 and consumed_at is null",[user.id,otpHash]);
+      if(emailError.code==="EMAIL_NOT_CONFIGURED") return fail(res,503,"EMAIL_NOT_CONFIGURED","Password reset email service is not configured.");
+      console.error("Password reset email failed",emailError);
+      return fail(res,502,"EMAIL_SEND_FAILED","Unable to send the password reset email.");
+    }
+    return ok(res,{ok:true,message:"If an account exists, an OTP has been sent to that email."});
+  }catch(e){console.error(e);return fail(res,500,"PASSWORD_RESET_REQUEST_FAILED","Unable to start password reset.");}
+});
+
+app.post("/api/auth/password-reset/verify",authLimiter,async function(req,res){
+  if(!requireDb(res)) return;
+  const p=z.object({email:z.string().email(),otp:z.string().regex(/^\d{6}$/),new_password:z.string().min(6).max(200)}).safeParse(req.body);
+  if(!p.success) return fail(res,400,"VALIDATION_ERROR","Email, 6-digit OTP and a valid new password are required.");
+  try{
+    const email=p.data.email.toLowerCase();
+    const q=await pool.query("select id,email from users where lower(email)=lower($1) and is_active=true limit 1",[email]);
+    if(!q.rowCount) return fail(res,400,"INVALID_OTP","The OTP is invalid or expired.");
+    const user=q.rows[0];
+    const otpQ=await pool.query("select id,otp_hash,attempts from password_reset_otps where user_id=$1 and consumed_at is null and expires_at>now() order by created_at desc limit 1",[user.id]);
+    if(!otpQ.rowCount) return fail(res,400,"INVALID_OTP","The OTP is invalid or expired.");
+    const reset=otpQ.rows[0];
+    if(Number(reset.attempts)>=5) return fail(res,429,"OTP_ATTEMPTS_EXCEEDED","Too many incorrect OTP attempts. Request a new OTP.");
+    const valid=crypto.timingSafeEqual(Buffer.from(reset.otp_hash),Buffer.from(hashToken(p.data.otp)));
+    if(!valid){
+      await pool.query("update password_reset_otps set attempts=attempts+1 where id=$1",[reset.id]);
+      return fail(res,400,"INVALID_OTP","The OTP is invalid or expired.");
+    }
+    const passwordHash=await bcrypt.hash(p.data.new_password,12);
+    await runTx(async function(client){
+      await client.query("update users set password_hash=$1,updated_at=now() where id=$2",[passwordHash,user.id]);
+      await client.query("update password_reset_otps set consumed_at=now() where id=$1",[reset.id]);
+      await client.query("update sessions set revoked_at=now() where user_id=$1 and revoked_at is null",[user.id]);
+    });
+    return ok(res,{ok:true,message:"Password reset successfully. Please sign in with your new password."});
+  }catch(e){console.error(e);return fail(res,500,"PASSWORD_RESET_FAILED","Unable to reset the password.");}
 });
 
 app.post("/api/auth/login",authLimiter,async function(req,res){
