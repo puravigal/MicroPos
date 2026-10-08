@@ -46,9 +46,9 @@ products:[
 {id:8,name:"Tea Powder 250g",sku:"PRD-008",barcode:"8901008",category:"Grocery",stock:13,reorder:8,cost:72,price:92,tax:5}
 ],
 customers:[
-{id:1,name:"Arun Kumar",phone:"9876543210",email:"arun@example.com",outstanding:8450},
-{id:2,name:"Meena Stores",phone:"9840011223",email:"meena@example.com",outstanding:2100},
-{id:3,name:"Ravi",phone:"9000012345",email:"",outstanding:0}
+{id:1,name:"Arun Kumar",phone:"9876543210",email:"arun@example.com",state:"Tamil Nadu",gstRegistered:true,gstin:"33ABCDE1234F1Z5",outstanding:8450},
+{id:2,name:"Meena Stores",phone:"9840011223",email:"meena@example.com",state:"Kerala",gstRegistered:true,gstin:"32ABCDE1234F1Z2",outstanding:2100},
+{id:3,name:"Ravi",phone:"9000012345",email:"",state:"Tamil Nadu",gstRegistered:false,gstin:"",outstanding:0}
 ],
 suppliers:[
 {id:1,name:"ABC Distributors",phone:"9876500011",outstanding:42800},
@@ -66,7 +66,7 @@ purchases:[
 ],
 returns:[{id:"RET-0007",date:"07 Oct 2026",invoice:"INV-1007",amount:175,status:"Completed"}],
 activity:[],
-settings:{business:"Puravigal POS Demo",country:"India",currency:"INR",timezone:"Asia/Kolkata",tax:5,prefix:"INV"}
+settings:{business:"Puravigal POS Demo",country:"India",state:"Tamil Nadu",currency:"INR",timezone:"Asia/Kolkata",tax:5,prefix:"INV"}
 };
 let db=loadDB();
 let state={page:"dashboard",search:"",cart:[],method:"cash",customerId:"",amountReceived:"",global:""};
@@ -115,25 +115,44 @@ function dashboard(){
  "<div class='two'><section class='card'><div class='card-head'><div><h3>Low Stock</h3><small>"+low.length+" items need attention</small></div><button class='btn' onclick=\"setPage('inventory')\">View All →</button></div>"+(low.length?low.map(p=>"<div class='row'><div><b>"+esc(p.name)+"</b><small>"+esc(p.sku)+"</small></div><span class='pill p'>"+p.stock+" left</span></div>").join(""):"<div class='empty'>All products are above reorder level.</div>")+"</section>"+
  "<section class='card'><div class='card-head'><div><h3>Recent Transactions</h3><small>Latest activity</small></div><button class='btn' onclick=\"setPage('reports')\">View All →</button></div>"+db.sales.slice(-5).reverse().map(x=>"<div class='row click' onclick=\"viewInvoice('"+x.id+"')\"><div><b>"+x.id+"</b><small>"+x.date+" · "+esc(x.customer)+"</small></div><b>"+money(x.total)+"</b></div>").join("")+"</section></div>";
 }
+function taxBreakdown(){
+ const taxable=state.cart.reduce((s,x)=>s+x.price*x.qty,0);
+ const gst=state.cart.reduce((s,x)=>s+x.price*x.qty*(Number(x.tax??db.settings.tax)||0)/100,0);
+ const customer=db.customers.find(c=>String(c.id)===String(state.customerId));
+ const businessState=db.settings.state||"Tamil Nadu";
+ const customerState=customer&&customer.state||businessState;
+ const sameState=!customer||customerState===businessState;
+ const registered=!!(customer&&customer.gstRegistered);
+ return {taxable,gst,customer,businessState,customerState,sameState,registered};
+}
+function gstRows(b){
+ if(!b.gst)return "";
+ if(b.sameState){
+   return "<div>CGST <b>"+money(b.gst/2)+"</b></div><div>SGST <b>"+money(b.gst/2)+"</b></div>";
+ }
+ return "<div>IGST <b>"+money(b.gst)+"</b></div>";
+}
 function billing(){
  const q=state.search.toLowerCase();
  const list=db.products.filter(p=>(p.name+" "+p.sku+" "+p.barcode).toLowerCase().includes(q));
- const subtotal=state.cart.reduce((s,x)=>s+x.price*x.qty,0);
- const tax=state.cart.reduce((s,x)=>s+x.price*x.qty*(x.tax||db.settings.tax)/100,0);
- const total=subtotal+tax;
- return shell("Fast billing","Search, add items, collect payment and finish the bill.","<button class='btn' onclick=\"barcodePrompt()\">⌕ Barcode Scanner</button><button class='btn' onclick=\"clearCart()\">Clear Bill</button>")+
+ const b=taxBreakdown(),total=b.taxable+b.gst;
+ const selected=b.customer;
+ const customerInfo=selected?(selected.gstRegistered
+   ? "<div class='notice' style='margin-top:8px'><b>GST Registered · "+esc(selected.gstin)+"</b><br>"+esc(selected.state||"")+" · "+(b.sameState?"Intra-state → CGST + SGST":"Inter-state → IGST")+"</div>"
+   : "<div class='notice' style='margin-top:8px'>B2C / Unregistered customer · "+esc(selected.state||"")+"</div>"):"<div class='notice' style='margin-top:8px'>Walk-in / B2C · GST charged based on product tax rate</div>";
+ return shell("Fast billing","Search, add items, collect payment and finish the bill.","<button class='btn' onclick="barcodePrompt()">⌕ Barcode Scanner</button><button class='btn' onclick="clearCart()">Clear Bill</button>")+
  "<div class='pos'><section class='card'><div class='card-head'><div><h3>Products</h3><small>Click a product to add it to the bill</small></div><span class='pill'>"+list.length+" results</span></div>"+
- "<input class='search' style='width:100%;margin-bottom:12px' placeholder='Search name, SKU or barcode...' value='"+esc(state.search)+"' oninput=\"state.search=this.value;render()\">"+
- "<div class='product-grid'>"+(list.length?list.map(p=>"<button class='product' onclick='addCart("+p.id+")' "+(p.stock<=0?"disabled":"")+"><strong>"+esc(p.name)+"</strong><small>"+esc(p.sku)+" · Stock "+p.stock+"</small><b>"+money(p.price)+"</b></button>").join(""):"<div class='empty' style='grid-column:1/-1'>No products found.</div>")+"</div>"+
- "<div class='cart'>"+(state.cart.length?state.cart.map(x=>"<div class='cart-line'><div><b>"+esc(x.name)+"</b><small>"+money(x.price)+" each · "+x.tax+"% tax</small></div><div class='qty'><button onclick='changeQty("+x.id+",-1)'>−</button><b>"+x.qty+"</b><button onclick='changeQty("+x.id+",1)'>+</button></div><b>"+money(x.price*x.qty)+"</b></div>").join(""):"<div class='empty'>Your bill is empty. Add a product to begin.</div>")+"</div></section>"+
- "<aside class='card'><div class='card-head'><h3>New Bill</h3><span class='pill'>Draft</span></div>"+
- "<div class='field'><label>Customer</label><select onchange='state.customerId=this.value'><option value=''>Walk-in Customer</option>"+db.customers.map(c=>"<option value='"+c.id+"' "+(String(state.customerId)===String(c.id)?"selected":"")+">"+esc(c.name)+" · "+esc(c.phone)+"</option>").join("")+"</select></div>"+
- "<div class='totals'><div>Subtotal <b>"+money(subtotal)+"</b></div><div>Tax <b>"+money(tax)+"</b></div><div class='grand'>Total <b>"+money(total)+"</b></div></div>"+
- "<div class='pay'>"+["cash","upi","card","bank","other"].map(m=>"<button class='"+(state.method===m?"active":"")+"' onclick=\"state.method='"+m+"';render()\">"+m.toUpperCase()+"</button>").join("")+"</div>"+
+ "<input class='search' style='width:100%;margin-bottom:12px' placeholder='Search name, SKU or barcode...' value='"+esc(state.search)+"' oninput="state.search=this.value;render()">"+
+ "<div class='product-grid'>"+(list.length?list.map(p=>"<button class='product' onclick='addCart("+p.id+")' "+(p.stock<=0?"disabled":"")+"><strong>"+esc(p.name)+"</strong><small>"+esc(p.sku)+" · Stock "+p.stock+" · GST "+(p.tax??db.settings.tax)+"%</small><b>"+money(p.price)+"</b></button>").join(""):"<div class='empty' style='grid-column:1/-1'>No products found.</div>")+"</div>"+
+ "<div class='cart'>"+(state.cart.length?state.cart.map(x=>"<div class='cart-line'><div><b>"+esc(x.name)+"</b><small>"+money(x.price)+" each · "+(x.tax??db.settings.tax)+"% GST</small></div><div class='qty'><button onclick='changeQty("+x.id+",-1)'>−</button><b>"+x.qty+"</b><button onclick='changeQty("+x.id+",1)'>+</button></div><b>"+money(x.price*x.qty)+"</b></div>").join(""):"<div class='empty'>Your bill is empty. Add a product to begin.</div>")+"</div></section>"+
+ "<aside class='card'><div class='card-head'><h3>New Bill</h3><span class='pill'>"+(selected&&selected.gstRegistered?"B2B":"B2C")+"</span></div>"+
+ "<div class='field'><label>Customer</label><select onchange='state.customerId=this.value;render()'><option value=''>Walk-in Customer</option>"+db.customers.map(c=>"<option value='"+c.id+"' "+(String(state.customerId)===String(c.id)?"selected":"")+">"+esc(c.name)+" · "+esc(c.phone)+(c.gstRegistered?" · GST":"")+"</option>").join("")+"</select></div>"+customerInfo+
+ "<div class='totals'><div>Taxable Value <b>"+money(b.taxable)+"</b></div>"+gstRows(b)+"<div>GST Total <b>"+money(b.gst)+"</b></div><div class='grand'>Invoice Total <b>"+money(total)+"</b></div></div>"+
+ "<div class='pay'>"+["cash","upi","card","bank","other"].map(m=>"<button class='"+(state.method===m?"active":"")+"' onclick="state.method='"+m+"';render()">"+m.toUpperCase()+"</button>").join("")+"</div>"+
  "<div class='field'><label>Amount Received</label><input type='number' min='0' value='"+esc(state.amountReceived)+"' oninput='state.amountReceived=this.value' placeholder='"+total.toFixed(2)+"'></div>"+
  "<div class='row'><span>Change</span><b>"+money(Math.max(0,(Number(state.amountReceived)||0)-total))+"</b></div>"+
  "<button class='btn primary' style='width:100%;margin-top:10px' onclick='checkout()'>Pay & Print · "+money(total)+"</button>"+
- "<div style='display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px'><button class='btn' onclick=\"openCustomerModal()\">＋ Customer</button><button class='btn pink' onclick=\"setPage('returns')\">↩ Return</button></div></aside></div>";
+ "<div style='display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px'><button class='btn' onclick="openCustomerModal()">＋ Customer</button><button class='btn pink' onclick="setPage('returns')">↩ Return</button></div></aside></div>";
 }
 function productRows(){
  const q=state.search.toLowerCase();const a=db.products.filter(p=>(p.name+" "+p.sku+" "+p.category).toLowerCase().includes(q));
@@ -193,15 +212,18 @@ function page(){
 function addCart(id){const p=db.products.find(x=>x.id===id);if(!p||p.stock<=0)return toast("Product is out of stock");const x=state.cart.find(i=>i.id===id);if(x){if(x.qty>=p.stock)return toast("Not enough stock");x.qty++}else state.cart.push({id:p.id,name:p.name,price:p.price,tax:p.tax,qty:1});render()}
 function changeQty(id,d){const x=state.cart.find(i=>i.id===id),p=db.products.find(i=>i.id===id);if(!x)return;x.qty+=d;if(x.qty>p.stock)x.qty=p.stock;if(x.qty<=0)state.cart=state.cart.filter(i=>i.id!==id);render()}
 function clearCart(){state.cart=[];state.customerId="";state.amountReceived="";render()}
+function validGSTIN(g){return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i.test(String(g||"").trim())}
 function checkout(){
- const subtotal=state.cart.reduce((s,x)=>s+x.price*x.qty,0),tax=state.cart.reduce((s,x)=>s+x.price*x.qty*x.tax/100,0),total=subtotal+tax;
+ const b=taxBreakdown(),total=b.taxable+b.gst;
  if(!state.cart.length)return toast("Add at least one product");
+ if(b.registered&&!validGSTIN(b.customer.gstin))return toast("Valid GSTIN required for GST registered customer");
  if((Number(state.amountReceived)||0)<total)return toast("Amount received is less than total");
  const num=1009+db.sales.length;const invoice=db.settings.prefix+"-"+num;
  state.cart.forEach(x=>{const p=db.products.find(p=>p.id===x.id);p.stock-=x.qty});
- const customer=db.customers.find(c=>String(c.id)===String(state.customerId));
- db.sales.push({id:invoice,date:"08 Oct 2026",customer:customer?customer.name:"Walk-in",items:state.cart.map(x=>({productId:x.id,qty:x.qty,price:x.price})),total,payment:state.method});
- db.activity.push({text:"Sale "+invoice+" completed",time:"Just now"});
+ const customer=b.customer;
+ const taxMode=b.sameState?"INTRA":"INTER";
+ db.sales.push({id:invoice,date:"08 Oct 2026",customer:customer?customer.name:"Walk-in",customerId:customer?customer.id:null,gstin:customer&&customer.gstRegistered?customer.gstin:"",placeOfSupply:customer&&customer.state?customer.state:(db.settings.state||"Tamil Nadu"),taxMode,taxable:b.taxable,cgst:b.sameState?b.gst/2:0,sgst:b.sameState?b.gst/2:0,igst:b.sameState?0:b.gst,gst:b.gst,items:state.cart.map(x=>({productId:x.id,qty:x.qty,price:x.price,tax:x.tax})),total,payment:state.method});
+ db.activity.push({text:"Sale "+invoice+" completed · "+taxMode+" GST",time:"Just now"});
  saveDB();toast(invoice+" completed successfully");viewInvoice(invoice);state.cart=[];state.amountReceived="";state.customerId="";render();
 }
 function invoiceHTML(s){return "<div class='card' style='box-shadow:none;border:0;padding:0'><h2 style='margin:0 0 4px'>"+s.id+"</h2><p class='muted small'>"+s.date+" · "+esc(s.customer)+" · "+s.payment.toUpperCase()+"</p><div class='table' style='margin-top:12px'><table><thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead><tbody>"+s.items.map(i=>{const p=db.products.find(p=>p.id===i.productId);return "<tr><td>"+esc(p?p.name:"Item")+"</td><td>"+i.qty+"</td><td>"+money(i.price)+"</td><td>"+money(i.price*i.qty)+"</td></tr>"}).join("")+"</tbody></table></div><div class='totals'><div class='grand'>Invoice Total <b>"+money(s.total)+"</b></div></div></div>"}
@@ -221,10 +243,18 @@ function openStockModal(id){
 }
 function saveStock(){const p=db.products.find(x=>x.id===Number(document.getElementById("smProduct").value));const d=Number(document.getElementById("smQty").value);if(!p||!d)return toast("Enter a non-zero adjustment");if(p.stock+d<0)return toast("Stock cannot go below zero");p.stock+=d;db.activity.push({text:"Stock adjusted: "+p.name+" ("+(d>0?"+":"")+d+")",time:"Just now"});saveDB();closeModal();toast("Stock updated");render()}
 function openCustomerModal(id){
- const c=id?db.customers.find(x=>x.id===id):{name:"",phone:"",email:"",outstanding:0};
- openModal(id?"Edit Customer":"Add Customer","<div class='field'><label>Name</label><input id='cmName' value='"+esc(c.name)+"'></div><div class='inline'><div class='field'><label>Phone</label><input id='cmPhone' value='"+esc(c.phone)+"'></div><div class='field'><label>Email</label><input id='cmEmail' value='"+esc(c.email)+"'></div></div>","<button class='btn' onclick='closeModal()'>Cancel</button><button class='btn primary' onclick='saveCustomer("+(id||"null")+")'>Save Customer</button>");
+ const c=id?db.customers.find(x=>x.id===id):{name:"",phone:"",email:"",state:db.settings.state||"Tamil Nadu",gstRegistered:false,gstin:"",outstanding:0};
+ openModal(id?"Edit Customer":"Add Customer",
+ "<div class='field'><label>Name</label><input id='cmName' value='"+esc(c.name)+"'></div><div class='inline'><div class='field'><label>Phone</label><input id='cmPhone' value='"+esc(c.phone)+"'></div><div class='field'><label>Email</label><input id='cmEmail' value='"+esc(c.email)+"'></div></div><div class='inline'><div class='field'><label>State / Place of Supply</label><input id='cmState' value='"+esc(c.state||"")+"'></div><div class='field'><label>GST Status</label><select id='cmGST'><option value='false' "+(!c.gstRegistered?"selected":"")+">Unregistered / B2C</option><option value='true' "+(c.gstRegistered?"selected":"")+">GST Registered / B2B</option></select></div></div><div class='field'><label>GSTIN</label><input id='cmGSTIN' maxlength='15' value='"+esc(c.gstin||"")+"' placeholder='e.g. 33ABCDE1234F1Z5'></div>",
+ "<button class='btn' onclick='closeModal()'>Cancel</button><button class='btn primary' onclick='saveCustomer("+(id||"null")+")'>Save Customer</button>");
 }
-function saveCustomer(id){const c=id?db.customers.find(x=>x.id===id):{id:Date.now(),outstanding:0};c.name=document.getElementById("cmName").value.trim();c.phone=document.getElementById("cmPhone").value.trim();c.email=document.getElementById("cmEmail").value.trim();if(!c.name||!c.phone)return toast("Name and phone are required");if(!id)db.customers.push(c);saveDB();closeModal();toast("Customer saved");render()}
+function saveCustomer(id){
+ const c=id?db.customers.find(x=>x.id===id):{id:Date.now(),outstanding:0};
+ c.name=document.getElementById("cmName").value.trim();c.phone=document.getElementById("cmPhone").value.trim();c.email=document.getElementById("cmEmail").value.trim();c.state=document.getElementById("cmState").value.trim()||db.settings.state||"Tamil Nadu";c.gstRegistered=document.getElementById("cmGST").value==="true";c.gstin=document.getElementById("cmGSTIN").value.trim().toUpperCase();
+ if(!c.name||!c.phone)return toast("Name and phone are required");
+ if(c.gstRegistered&&!validGSTIN(c.gstin))return toast("Enter a valid 15-character GSTIN");
+ if(!id)db.customers.push(c);saveDB();closeModal();toast("Customer saved");render();
+}
 function customerLedger(id){const c=db.customers.find(x=>x.id===id);if(!c)return;const rows=db.sales.filter(s=>s.customer===c.name);openModal("Customer Ledger","<p><b>"+esc(c.name)+"</b><br><span class='muted small'>"+esc(c.phone)+" · Outstanding "+money(c.outstanding)+"</span></p>"+(rows.length?rows.map(s=>"<div class='row'><span>"+s.id+"<small>"+s.date+" · "+s.payment+"</small></span><b>"+money(s.total)+"</b></div>").join(""):"<div class='empty'>No invoices for this customer.</div>"))}
 function openSupplierModal(id){
  const s=id?db.suppliers.find(x=>x.id===id):{name:"",phone:"",outstanding:0};
