@@ -698,6 +698,17 @@ app.get("/api/dashboard",auth,roles("owner"),async function(req,res){
   return ok(res,{sales:sales.rows[0].total,bills:bills.rows[0].count,lowStock:low.rows[0].count,outstanding:outstanding.rows[0].total});
 });
 
+app.get("/api/business-profile",auth,async function(req,res){
+  if(!requireDb(res))return;
+  try{
+    await ensureGstColumn();
+    const [o,b]=await Promise.all([
+      pool.query("select name,country_code,currency_code,timezone,tax_registration_number,tax_registration_type,gst_enabled from organizations where id=$1",[req.user.orgId]),
+      pool.query("select tax_mode from business_settings where organization_id=$1",[req.user.orgId])
+    ]);
+    return ok(res,{...o.rows[0],...(b.rows[0]||{})});
+  }catch(e){return fail(res,500,"BUSINESS_PROFILE_FAILED","Unable to load business tax settings.");}
+});
 app.get("/api/settings",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   try{await ensureGstColumn();}catch(e){return fail(res,500,"SETTINGS_MIGRATION_FAILED","Unable to prepare business settings.");}
