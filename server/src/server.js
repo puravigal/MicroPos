@@ -127,6 +127,7 @@ const signupSchema=z.object({
   password:z.string().min(8).max(128),
   display_name:z.string().trim().min(1).max(120),
   business_name:z.string().trim().min(1).max(200),
+  phone:z.string().trim().min(7).max(40),
   country_code:z.string().regex(/^[A-Za-z]{2}$/).default("IN").transform(function(x){return x.toUpperCase();}),
   currency_code:z.string().regex(/^[A-Za-z]{3}$/).default("INR").transform(function(x){return x.toUpperCase();}),
   timezone:z.string().min(1).max(80).default("Asia/Kolkata"),
@@ -209,7 +210,7 @@ app.post("/api/auth/signup",authLimiter,async function(req,res){
       const exists=await client.query("select 1 from users where lower(email)=lower($1)",[d.email]);
       if(exists.rowCount) throw Object.assign(new Error("Email exists"),{code:"EMAIL_EXISTS"});
       const hash=await bcrypt.hash(d.password,12);
-      const user=(await client.query("insert into users(email,password_hash,display_name,is_verified) values(lower($1),$2,$3,true) returning id,email,display_name",[d.email,hash,d.display_name])).rows[0];
+      const user=(await client.query("insert into users(email,password_hash,display_name,phone,is_verified) values(lower($1),$2,$3,$4,true) returning id,email,display_name,phone",[d.email,hash,d.display_name,d.phone])).rows[0];
       const org=(await client.query("insert into organizations(name,country_code,currency_code,timezone,locale) values($1,$2,$3,$4,$5) returning id,name,country_code,currency_code,timezone,locale",[d.business_name,d.country_code,d.currency_code,d.timezone,d.locale])).rows[0];
       await client.query("insert into organization_users(organization_id,user_id,role) values($1,$2,'owner')",[org.id,user.id]);
       await client.query("insert into stores(organization_id,name,code) values($1,$2,'MAIN')",[org.id,d.business_name]);
