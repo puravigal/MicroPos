@@ -27,6 +27,8 @@ export const api={
   health:()=>request("/api/health"),
   signup:(body)=>request("/api/auth/signup",{method:"POST",body:JSON.stringify(body)}),
   login:(body)=>request("/api/auth/login",{method:"POST",body:JSON.stringify(body)}),
+  requestPasswordReset:(email)=>request("/api/auth/password-reset/request",{method:"POST",body:JSON.stringify({email})}),
+  verifyPasswordReset:(body)=>request("/api/auth/password-reset/verify",{method:"POST",body:JSON.stringify(body)}),
   logout:(body)=>request("/api/auth/logout",{method:"POST",body:JSON.stringify(body)}),
   me:()=>request("/api/me"),
   products:(q="")=>request("/api/products?q="+encodeURIComponent(q)),
