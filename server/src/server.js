@@ -132,7 +132,7 @@ const signupSchema=z.object({
   email:z.string().email().max(320),
   password:z.string().min(8).max(128),
   display_name:z.string().trim().min(1).max(120),
-  business_name:z.string().trim().min(1).max(200),
+  business_name:z.string().trim().max(200).optional().default(""),
   phone:z.string().trim().min(7).max(40),
   country_code:z.string().regex(/^[A-Za-z]{2}$/).default("IN").transform(function(x){return x.toUpperCase();}),
   currency_code:z.string().regex(/^[A-Za-z]{3}$/).default("INR").transform(function(x){return x.toUpperCase();}),
@@ -140,6 +140,9 @@ const signupSchema=z.object({
   locale:z.string().min(2).max(20).default("en-IN"),
   account_type:z.enum(["super_admin","user"]).default("super_admin"),
   invite_code:z.string().trim().max(80).optional()
+}).superRefine(function(d,ctx){
+  if(d.account_type==="super_admin"&&!d.business_name.trim())ctx.addIssue({code:z.ZodIssueCode.custom,path:["business_name"],message:"Business name is required for Super Admin signup."});
+  if(d.account_type==="user"&&!d.invite_code)ctx.addIssue({code:z.ZodIssueCode.custom,path:["invite_code"],message:"Business invite code is required for Normal User signup."});
 });
 const productSchema=z.object({
   name:z.string().trim().min(1).max(200),
@@ -342,7 +345,7 @@ app.get("/api/me",auth,async function(req,res){
   return ok(res,q.rows[0]);
 });
 
-app.get("/api/stores",auth,async function(req,res){
+app.get("/api/stores",auth,roles("owner","cashier"),async function(req,res){
   if(!requireDb(res)) return;
   const q=await pool.query("select id,name,code,address,is_active from stores where organization_id=$1 order by created_at",[req.user.orgId]);
   return ok(res,{items:q.rows});
@@ -366,7 +369,7 @@ async function createEntity(req,res,table,fields,schema,allowedRoles){
   if(!requireDb(res)) return;
   const p=schema.safeParse(req.body);
   if(!p.success) return fail(res,400,"VALIDATION_ERROR","Invalid data.",p.error.issues);
-  if(allowedRoles && allowedRoles.length && !allowedRoles.includes(req.user.role) && !["owner","admin"].includes(req.user.role)) return fail(res,403,"FORBIDDEN","You do not have permission for this action.");
+  if(allowedRoles && allowedRoles.length && !allowedRoles.includes(req.user.role) && req.user.role!=="owner") return fail(res,403,"FORBIDDEN","You do not have permission for this action.");
   const d=p.data;
   if(table==="customers" && (!d.email || typeof d.email!=="string" || !d.email.trim())) return fail(res,400,"CUSTOMER_EMAIL_REQUIRED","Customer email is required.");
   if(table==="customers" && typeof d.email==="string"){
@@ -790,7 +793,7 @@ app.get("/api/audit",auth,roles("owner"),async function(req,res){
   return ok(res,{items:r.rows});
 });
 
-app.get("/api/notifications",auth,async function(req,res){
+app.get("/api/notifications",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   const r=await pool.query("select * from notifications where organization_id=$1 and (user_id=$2 or user_id is null) order by created_at desc limit 100",[req.user.orgId,req.user.sub]);
   return ok(res,{items:r.rows});
@@ -800,6 +803,7 @@ app.post("/api/offline/sync",auth,async function(req,res){
   if(!requireDb(res))return;
   const p=z.object({device_id:z.string().min(1).max(200),operations:z.array(z.object({operation_key:z.string().min(8).max(200),operation_type:z.enum(["sale","stock_adjustment"]),payload:z.record(z.string(),z.any())})).max(200)}).safeParse(req.body);
   if(!p.success)return fail(res,400,"VALIDATION_ERROR","Invalid offline operations.",p.error.issues);
+  if(req.user.role!=="owner"&&p.data.operations.some(function(op){return op.operation_type!=="sale";}))return fail(res,403,"FORBIDDEN","Normal Users may only queue sales while offline.");
   const results=[];
   for(const op of p.data.operations){
     try{
