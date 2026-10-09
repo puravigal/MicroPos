@@ -55,29 +55,27 @@ function hashToken(value){ return crypto.createHash("sha256").update(value).dige
 function newRefreshToken(){ return crypto.randomBytes(48).toString("base64url"); }
 function newPasswordResetOtp(){ return String(crypto.randomInt(100000,1000000)); }
 async function sendPasswordResetOtpEmail(to,otp){
-  const smtpUser=process.env.ZOHO_SMTP_USER;
-  const smtpPassword=process.env.ZOHO_SMTP_PASSWORD;
-  const from=process.env.ZOHO_SMTP_FROM || smtpUser;
-  if(!smtpUser || !smtpPassword || !from) throw Object.assign(new Error("Zoho SMTP is not configured"),{code:"EMAIL_NOT_CONFIGURED"});
-  const {default:nodemailer}=await import("nodemailer");
-  const port=Number(process.env.ZOHO_SMTP_PORT || 465);
-  const transporter=nodemailer.createTransport({
-    host:process.env.ZOHO_SMTP_HOST || "smtppro.zoho.com",
-    port,
-    secure:(process.env.ZOHO_SMTP_SECURE || (port===465?"true":"false")).toLowerCase()==="true",
-    auth:{user:smtpUser,pass:smtpPassword},
-    connectionTimeout:10000,
-    greetingTimeout:10000,
-    socketTimeout:15000
+  const apiKey=process.env.RESEND_API_KEY;
+  const from=process.env.RESEND_FROM_EMAIL || process.env.ZOHO_SMTP_FROM || process.env.ZOHO_SMTP_USER;
+  if(!apiKey || !from) throw Object.assign(new Error("Resend email API is not configured"),{code:"EMAIL_NOT_CONFIGURED"});
+  const response=await fetch("https://api.resend.com/emails",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+apiKey},
+    body:JSON.stringify({
+      from:"Puravigal POS <"+from+">",
+      to:[to],
+      subject:"Your Puravigal POS password reset OTP",
+      text:"Your Puravigal POS password reset OTP is "+otp+". It expires in 10 minutes. If you did not request this, ignore this email.",
+      html:"<div style=\"font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#17213b\"><h2>Puravigal POS</h2><p>Use this OTP to reset your password:</p><div style=\"font-size:32px;font-weight:800;letter-spacing:8px;padding:16px;background:#f3f6ff;border-radius:10px;text-align:center\">"+otp+"</div><p>This OTP expires in 10 minutes. If you did not request a password reset, you can safely ignore this email.</p></div>"
+    }),
+    signal:AbortSignal.timeout(15000)
   });
-  await transporter.sendMail({
-    from,
-    to,
-    subject:"Your Puravigal POS password reset OTP",
-    text:"Your Puravigal POS password reset OTP is "+otp+". It expires in 10 minutes. If you did not request this, ignore this email.",
-    html:"<div style=\"font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#17213b\"><h2>Puravigal POS</h2><p>Use this OTP to reset your password:</p><div style=\"font-size:32px;font-weight:800;letter-spacing:8px;padding:16px;background:#f3f6ff;border-radius:10px;text-align:center\">"+otp+"</div><p>This OTP expires in 10 minutes. If you did not request a password reset, you can safely ignore this email.</p></div>"
-  });
-  await transporter.close();
+  if(!response.ok){
+    const details=await response.text().catch(()=> "");
+    const error=new Error("Resend email API returned HTTP "+response.status+(details?" : "+details.slice(0,500):""));
+    error.code="RESEND_SEND_FAILED";
+    throw error;
+  }
 }
 async function issueSession(client,user,orgId,role){
   const refresh = newRefreshToken();
