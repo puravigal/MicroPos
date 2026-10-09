@@ -31,12 +31,47 @@ const modules=[
  {id:"settings",label:"Settings",icon:"⚙"}
 ];
 
+const SIGNUP_COUNTRIES=[
+ {code:"IN",name:"India",dial:"+91",currency:"INR",timezone:"Asia/Kolkata",locale:"en-IN"},
+ {code:"AE",name:"United Arab Emirates",dial:"+971",currency:"AED",timezone:"Asia/Dubai",locale:"en-AE"},
+ {code:"US",name:"United States",dial:"+1",currency:"USD",timezone:"America/New_York",locale:"en-US"},
+ {code:"GB",name:"United Kingdom",dial:"+44",currency:"GBP",timezone:"Europe/London",locale:"en-GB"},
+ {code:"SA",name:"Saudi Arabia",dial:"+966",currency:"SAR",timezone:"Asia/Riyadh",locale:"en-SA"},
+ {code:"QA",name:"Qatar",dial:"+974",currency:"QAR",timezone:"Asia/Qatar",locale:"en-QA"},
+ {code:"OM",name:"Oman",dial:"+968",currency:"OMR",timezone:"Asia/Muscat",locale:"en-OM"},
+ {code:"BH",name:"Bahrain",dial:"+973",currency:"BHD",timezone:"Asia/Bahrain",locale:"en-BH"},
+ {code:"ZA",name:"South Africa",dial:"+27",currency:"ZAR",timezone:"Africa/Johannesburg",locale:"en-ZA"}
+];
+const SIGNUP_CURRENCIES=[
+ {code:"INR",name:"Indian Rupee (INR)"},{code:"AED",name:"UAE Dirham (AED)"},
+ {code:"USD",name:"US Dollar (USD)"},{code:"GBP",name:"British Pound (GBP)"},
+ {code:"SAR",name:"Saudi Riyal (SAR)"},{code:"QAR",name:"Qatari Riyal (QAR)"},
+ {code:"OMR",name:"Omani Rial (OMR)"},{code:"BHD",name:"Bahraini Dinar (BHD)"},
+ {code:"ZAR",name:"South African Rand (ZAR)"},{code:"EUR",name:"Euro (EUR)"}
+];
 function Auth({onLogin}){
- const [mode,setMode]=useState("login"),[form,setForm]=useState({email:"",password:"",display_name:"",business_name:"",country_code:"IN",currency_code:"INR",timezone:"Asia/Kolkata",locale:"en-IN"}),[busy,setBusy]=useState(false),[error,setError]=useState("");
- const submit=async e=>{e.preventDefault();setBusy(true);setError("");try{const r=mode==="login"?await api.login({email:form.email,password:form.password}):await api.signup(form);saveSession(r.session);onLogin(r);}catch(err){setError(err.message)}finally{setBusy(false)}};
- return <div className="auth-page"><div className="auth-card"><div className="auth-brand"><div className="logo">P</div><div><strong>Puravigal POS</strong><small>Micro POS · Professional quality</small></div></div><div className="auth-copy"><p className="eyebrow">SECURE BUSINESS ACCESS</p><h1>{mode==="login"?"Welcome back":"Create your business"}</h1><p>Fast billing, inventory and business control from one workspace.</p></div>{error&&<div className="alert error">{error}</div>}<form onSubmit={submit}>{mode==="signup"&&<><Field label="Your name" value={form.display_name} onChange={e=>setForm({...form,display_name:e.target.value})}/><Field label="Business name" value={form.business_name} onChange={e=>setForm({...form,business_name:e.target.value})}/><div className="form-grid two"><Field label="Country code" value={form.country_code} onChange={e=>setForm({...form,country_code:e.target.value.toUpperCase()})}/><Field label="Currency code" value={form.currency_code} onChange={e=>setForm({...form,currency_code:e.target.value.toUpperCase()})}/></div></>}<Field label="Email" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/><Field label="Password" type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/><button className="primary wide" disabled={busy}>{busy?"Please wait…":mode==="login"?"Sign in":"Create account"}</button></form><button className="link-button" onClick={()=>setMode(mode==="login"?"signup":"login")}>{mode==="login"?"Create a new business account":"Already have an account? Sign in"}</button><small className="auth-note">Production integrations can be enabled through your configured API and provider credentials.</small></div></div>
+ const [mode,setMode]=useState("login"),[form,setForm]=useState({email:"",password:"",display_name:"",business_name:"",phone:"",country_code:"IN",currency_code:"INR",timezone:"Asia/Kolkata",locale:"en-IN"}),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const changeCountry=code=>{const c=SIGNUP_COUNTRIES.find(x=>x.code===code)||SIGNUP_COUNTRIES[0];setForm(f=>({...f,country_code:c.code,currency_code:c.currency,timezone:c.timezone,locale:c.locale}));};
+ const submit=async e=>{e.preventDefault();setError("");
+   if(mode==="signup"){
+     if(!form.display_name.trim()||!form.business_name.trim()||!form.phone.trim()||!form.email.trim()||!form.password){setError("Please complete all required fields.");return;}
+     if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(form.email)){setError("Enter a valid email address.");return;}
+     if(form.password.length<8){setError("Password must contain at least 8 characters.");return;}
+   }
+   setBusy(true);try{const r=mode==="login"?await api.login({email:form.email,password:form.password}):await api.signup(form);saveSession(r.session);onLogin(r);}
+   catch(err){setError(err.message||"Unable to create account. Please try again.");}
+   finally{setBusy(false);}
+ };
+ return <div className="auth-page"><div className="auth-card"><div className="auth-brand"><div className="logo">P</div><div><strong>Puravigal POS</strong><small>Micro POS · Professional quality</small></div></div><div className="auth-copy"><p className="eyebrow">SECURE BUSINESS ACCESS</p><h1>{mode==="login"?"Welcome back":"Create your business"}</h1><p>Fast billing, inventory and business control from one workspace.</p></div>{error&&<div className="alert error" role="alert">{error}</div>}<form onSubmit={submit}>{mode==="signup"&&<>
+ <Field label="Your name" value={form.display_name} autoComplete="name" required onChange={e=>setForm({...form,display_name:e.target.value})}/>
+ <Field label="Business name" value={form.business_name} autoComplete="organization" required onChange={e=>setForm({...form,business_name:e.target.value})}/>
+ <Field label="Phone number" type="tel" value={form.phone} autoComplete="tel" placeholder="+91 98765 43210" required onChange={e=>setForm({...form,phone:e.target.value})}/>
+ <div className="form-grid two">
+  <Field label="Country" ><select value={form.country_code} onChange={e=>changeCountry(e.target.value)}>{SIGNUP_COUNTRIES.map(c=><option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}</select></Field>
+  <Field label="Business currency"><select value={form.currency_code} onChange={e=>setForm({...form,currency_code:e.target.value})}>{SIGNUP_CURRENCIES.map(c=><option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
+ </div>
+ </>}<Field label="Email" type="email" autoComplete="email" value={form.email} required onChange={e=>setForm({...form,email:e.target.value})}/><Field label="Password (minimum 8 characters)" type="password" autoComplete={mode==="login"?"current-password":"new-password"} minLength={mode==="signup"?8:undefined} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/><button className="primary wide" disabled={busy}>{busy?"Please wait…":mode==="login"?"Sign in":"Create account"}</button></form><button className="link-button" onClick={()=>{setMode(mode==="login"?"signup":"login");setError("");}}>{mode==="login"?"Create a new business account":"Already have an account? Sign in"}</button><small className="auth-note">Production integrations can be enabled through your configured API and provider credentials.</small></div></div>
 }
-
 function Dashboard({data,settings,onGo}){
  const total=data.sales.reduce((s,x)=>s+Number(x.total||x.grand_total||0),0),bills=data.sales.length,low=data.products.filter(x=>Number(x.stock)<=Number(x.min_stock)).length;
  const recent=data.sales.slice(-6).reverse();
