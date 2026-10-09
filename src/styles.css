@@ -149,3 +149,27 @@ button.primary:disabled{filter:grayscale(.12);box-shadow:none}
 .chart-point:hover .chart-bar,.chart-point:focus .chart-bar{fill:#7136bb}
 .chart-point:hover .chart-bar-today,.chart-point:focus .chart-bar-today{fill:#e60063}
 @media(max-width:800px){.dashboard-primary-grid{grid-template-columns:minmax(0,1fr)}.sales-chart-card{min-width:0}.sales-chart{overflow:visible}}
+
+
+/* Accessible branded role selectors and staff-access controls */
+.auth-role-select,.role-select{
+  appearance:none;-webkit-appearance:none;width:100%;min-height:42px;
+  border:1px solid var(--line);border-radius:11px;background-color:#fff;
+  color:#182033;padding:10px 40px 10px 12px;font-size:13px;font-weight:650;
+  line-height:1.35;outline:none;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23727c90' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 13px center;
+  transition:border-color .16s ease,box-shadow .16s ease
+}
+.auth-role-select:focus,.role-select:focus{border-color:#7136bb;box-shadow:0 0 0 3px #7136bb18}
+.role-select{min-width:245px;max-width:100%;font-size:12px}
+.role-select:disabled{background-color:#f7f8fb;color:#6f7890;cursor:not-allowed;opacity:.8}
+.access-card{border-color:#e1d8f6;background:linear-gradient(140deg,#fff 0%,#fcfaff 100%)}
+.invite-code-row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px;border:1px solid #e5dcfa;border-radius:13px;background:#fff}
+.invite-code-row>div:first-child{display:grid;gap:6px;min-width:0}
+.invite-code-value{font-size:22px;letter-spacing:3px;color:#7136bb;overflow-wrap:anywhere}
+.invite-code-row small{font-size:12px;color:var(--muted);line-height:1.45}
+.invite-actions{display:flex;gap:8px;flex-wrap:wrap}
+.status-pill{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;background:#fff1f2;color:#b4233a;font-size:11px;font-weight:750}
+.status-pill.active{background:#e9f9f1;color:#128254}
+@media(max-width:700px){.invite-code-row{align-items:stretch;flex-direction:column}.invite-actions>*{flex:1}.role-select{min-width:200px}}
