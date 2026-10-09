@@ -1,8 +1,5 @@
 -- Puravigal POS production-oriented PostgreSQL foundation.
 -- India-first, UAE-ready, globally extensible.
--- Business-level GST switch; GST is opt-in per organization.
-alter table organizations add column if not exists gst_enabled boolean not null default false;
-
 create extension if not exists pgcrypto;
 
 create table if not exists organizations(
@@ -261,4 +258,7 @@ create index if not exists idx_purchase_items_purchase on purchase_items(purchas
 insert into units(organization_id,code,name,decimals)
 select null,'PCS','Piece',0
 where not exists(select 1 from units where organization_id is null and code='PCS');
+
+-- Business-level GST switch; GST is opt-in per organization.
+alter table organizations add column if not exists gst_enabled boolean not null default false;
 
