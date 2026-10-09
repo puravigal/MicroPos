@@ -76,3 +76,33 @@ main{max-width:1500px;margin:auto}.mobile-head{display:none}.workspace-shell{pad
  .no-print,.modal-backdrop,.topbar,.sidebar,.bottom-nav{display:none!important}
  .invoice-table tr{break-inside:avoid}
 }
+
+
+/* Navigation icons and account menu matching the approved mock */
+.side-item{gap:12px!important}
+.side-icon{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px;color:#77839a}
+.side-item.selected .side-icon{color:var(--blue)}
+.side-icon svg{display:block;width:17px;height:17px}
+.bottom-nav .side-icon{display:flex;margin:0 auto 4px;width:22px;height:22px}
+.bottom-nav .side-icon svg{width:18px;height:18px}
+.top-actions{display:flex;align-items:center;gap:14px}
+.account-area{position:relative;z-index:75}
+.user-chip{display:flex;align-items:center;gap:9px;border:1px solid transparent;background:#fff;border-radius:12px;padding:5px 8px;text-align:left;color:#182033}
+.user-chip:hover,.user-chip.account-open{background:#f7f9ff;border-color:#e5eaf4}
+.user-avatar{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,var(--blue),var(--pink));color:#fff;font-weight:850;font-size:14px}
+.user-identity{display:flex;flex-direction:column;gap:3px}
+.user-identity b{font-size:12px}
+.user-identity small{font-size:10px;color:var(--muted);text-transform:capitalize}
+.account-chevron{color:#7c879b;font-size:16px;margin-left:5px}
+.account-dismiss{position:fixed;inset:0;width:100vw;height:100vh;border:0;background:transparent;z-index:70;cursor:default}
+.account-menu{position:absolute;right:0;top:calc(100% + 8px);width:260px;background:#fff;border:1px solid var(--line);border-radius:15px;padding:8px;box-shadow:0 18px 50px #18203324;z-index:80}
+.account-menu-profile{padding:12px;border-bottom:1px solid #edf0f5;margin-bottom:6px}
+.account-menu-profile strong,.account-menu-profile small{display:block;overflow-wrap:anywhere}
+.account-menu-profile strong{font-size:13px}
+.account-menu-profile small{font-size:11px;color:var(--muted);margin-top:4px}
+.account-menu>button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:#fff;border-radius:9px;padding:11px 10px;text-align:left;font-size:12px;color:#344057}
+.account-menu>button:hover{background:#f4f7ff;color:var(--blue)}
+.account-menu>button svg{width:17px;height:17px}
+.account-menu>button.account-signout{color:#c52e47}
+.account-menu>button.account-signout:hover{background:#fff2f4;color:#b51f38}
+@media(max-width:800px){.account-area{position:static}.account-menu{position:fixed;right:12px;top:68px}.account-dismiss{z-index:70}.user-chip{padding:3px}.user-avatar{width:34px;height:34px}.user-identity,.account-chevron{display:none}}
