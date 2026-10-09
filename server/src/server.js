@@ -215,7 +215,7 @@ app.post("/api/auth/signup",authLimiter,async function(req,res){
       await client.query("insert into organization_users(organization_id,user_id,role) values($1,$2,'owner')",[org.id,user.id]);
       await client.query("insert into stores(organization_id,name,code) values($1,$2,'MAIN')",[org.id,d.business_name]);
       await client.query("insert into business_settings(organization_id) values($1)",[org.id]);
-      await client.query("insert into tax_profiles(organization_id,name,country_code,rate,components,is_zero_rated,is_exempt) values($1,$2,$3,$4,$5,false,false)",[org.id,d.country_code,d.country_code==="AE"?"UAE VAT 5%":"Standard Tax",d.country_code==="AE"?5:0,JSON.stringify(d.country_code==="AE"?[{code:"VAT",rate:5}]:[])]);
+      await client.query("insert into tax_profiles(organization_id,name,country_code,rate,components,is_zero_rated,is_exempt) values($1,$2,$3,$4,$5,false,false)",[org.id,d.country_code==="AE"?"UAE VAT 5%":"Standard Tax",d.country_code,d.country_code==="AE"?5:0,JSON.stringify(d.country_code==="AE"?[{code:"VAT",rate:5}]:[])]);
       const session=await issueSession(client,user,org.id,"owner");
       return {user:user,organization:org,session:session};
     });
