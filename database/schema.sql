@@ -40,6 +40,7 @@ create table if not exists organization_users(
  organization_id uuid not null references organizations(id) on delete cascade,
  user_id uuid not null references users(id) on delete cascade,
  role text not null default 'staff' check(role in('owner','admin','manager','cashier','inventory')),
+ permissions jsonb not null default '["billing","customers","inventory"]'::jsonb,
  created_at timestamptz not null default now(), primary key(organization_id,user_id)
 );
 create table if not exists role_permissions(
