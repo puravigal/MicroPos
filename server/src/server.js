@@ -507,7 +507,8 @@ app.post("/api/sales",auth,roles("cashier","manager"),async function(req,res){
         const lineGross=unitPrice*Number(item.quantity);
         const lineDiscount=Math.min(Number(item.discount_amount),lineGross);
         const taxable=Math.max(0,lineGross-lineDiscount);
-        const effectiveTaxRate=org.gst_enabled?Number(product.tax_rate):0;
+        const configuredTaxRate=Number(product.tax_rate||0);
+        const effectiveTaxRate=org.gst_enabled?(configuredTaxRate>0?configuredTaxRate:5):0;
         subtotal+=lineGross; discount+=lineDiscount;
         lines.push({product:product,quantity:Number(item.quantity),unitPrice:unitPrice,discount:lineDiscount,baseTaxable:taxable,taxable:taxable,taxRate:effectiveTaxRate,inclusiveTax:inclusiveTax,tax:0,total:taxable,stock:stock});
       }

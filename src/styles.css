@@ -422,3 +422,12 @@ th{background:#f8faff}
 .cart-row>strong:last-child{text-align:right;white-space:nowrap;align-self:center;}
 @media(max-width:1100px){.cart-row{grid-template-columns:minmax(0,1fr) 112px minmax(90px,auto);}}
 @media(max-width:600px){.cart-row{grid-template-columns:minmax(0,1fr) 112px;gap:8px;}.cart-row>strong{grid-column:1/-1;text-align:right;}}
+
+
+/* Billing quantity controls only — do not affect shared button styles. */
+.cart-row{grid-template-columns:minmax(0,1fr) 112px minmax(100px,max-content);column-gap:16px;align-items:center;}
+.cart-row>.qty{display:grid;grid-template-columns:32px 24px 32px;gap:6px;align-items:center;justify-content:center;justify-self:center;min-width:94px;}
+.cart-row>.qty>.qty-control-btn{box-sizing:border-box!important;display:flex!important;align-items:center!important;justify-content:center!important;width:32px!important;min-width:32px!important;height:32px!important;min-height:32px!important;padding:0!important;margin:0!important;line-height:1!important;font-size:18px!important;}
+.cart-row>.qty>b{width:24px;min-width:24px;text-align:center;line-height:32px;}
+.cart-row>strong:last-child{text-align:right;white-space:nowrap;align-self:center;}
+@media(max-width:760px){.cart-row{grid-template-columns:minmax(0,1fr) 100px;column-gap:8px;}.cart-row>.qty{grid-template-columns:30px 20px 30px;min-width:86px;gap:3px;}.cart-row>.qty>.qty-control-btn{width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important;}.cart-row>strong:last-child{grid-column:1/-1;text-align:right;}}
