@@ -573,7 +573,7 @@ app.post("/api/purchases",auth,roles("manager","inventory"),async function(req,r
 
 app.get("/api/purchases",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
-  const r=await pool.query("select p.*,coalesce(s.name,'Unknown supplier') supplier_name from suppliers_purchases p left join suppliers s on s.id=p.supplier_id where p.organization_id=$1 order by p.created_at desc limit 200",[req.user.orgId]);
+  const r=await pool.query("select p.*,coalesce(s.name,'Unknown supplier') supplier_name,coalesce(json_agg(json_build_object('product_id',pi.product_id,'product_name',pr.name,'sku',pr.sku,'quantity',pi.quantity,'unit_cost',pi.unit_cost,'line_total',pi.line_total)) filter (where pi.id is not null),'[]'::json) items from suppliers_purchases p left join suppliers s on s.id=p.supplier_id left join purchase_items pi on pi.purchase_id=p.id left join products pr on pr.id=pi.product_id where p.organization_id=$1 group by p.id,s.name order by p.created_at desc limit 200",[req.user.orgId]);
   return ok(res,{items:r.rows});
 });
 
