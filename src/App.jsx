@@ -148,9 +148,14 @@ function InvoiceRecordViewer({record,settings,apiMode,onClose}){
 }
 
 function Billing({data,setData,settings,apiMode}){
- const [q,setQ]=useState(""),[cart,setCart]=useState([]),[discount,setDiscount]=useState(0),[method,setMethod]=useState("cash"),[paid,setPaid]=useState(""),[customer,setCustomer]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState(""),[lastInvoice,setLastInvoice]=useState(null),[invoiceOpen,setInvoiceOpen]=useState(false),[showCustomerForm,setShowCustomerForm]=useState(false),[customerForm,setCustomerForm]=useState({name:"",phone:"",email:""}),[savingCustomer,setSavingCustomer]=useState(false);
+ const [q,setQ]=useState(""),[cart,setCart]=useState([]),[discount,setDiscount]=useState(0),[method,setMethod]=useState("cash"),[paid,setPaid]=useState(""),[customer,setCustomer]=useState(""),[busy,setBusy]=useState(false),[notice,setNotice]=useState(""),[lastInvoice,setLastInvoice]=useState(null),[invoiceOpen,setInvoiceOpen]=useState(false),[showCustomerForm,setShowCustomerForm]=useState(false),[customerForm,setCustomerForm]=useState({name:"",phone:"",email:""}),[savingCustomer,setSavingCustomer]=useState(false),[serverTaxProfile,setServerTaxProfile]=useState(null);
+ useEffect(()=>{let cancelled=false;if(apiMode){api.businessProfile().then(profile=>{if(!cancelled)setServerTaxProfile(profile)}).catch(()=>{});}return()=>{cancelled=true};},[apiMode]);
  const found=data.products.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())||(p.sku||"").toLowerCase().includes(q.toLowerCase())||(p.barcode||"").includes(q)).slice(0,12);
- const gstEnabled=Boolean(settings.gst_enabled),subtotal=cart.reduce((s,x)=>s+x.price*x.qty,0),discountTotal=Math.min(Number(discount)||0,subtotal),taxable=Math.max(0,subtotal-discountTotal),tax=gstEnabled?cart.reduce((s,x)=>s+x.price*x.qty*(Number(x.tax_rate||x.tax||0)/100),0)*(subtotal?taxable/subtotal:0):0,total=Math.max(0,taxable+tax);
+ // Prefer the persisted business profile in cloud mode so Billing never uses a stale GST toggle.
+ const gstEnabled=apiMode&&serverTaxProfile?Boolean(serverTaxProfile.gst_enabled):settings.gst_enabled===true||settings.gst_enabled==="true"||settings.gst_enabled===1;
+ const subtotal=cart.reduce((s,x)=>s+x.price*x.qty,0),discountTotal=Math.min(Number(discount)||0,subtotal),taxable=Math.max(0,subtotal-discountTotal);
+ const tax=gstEnabled&&subtotal>0?cart.reduce((sum,x)=>{const lineBase=x.price*x.qty;const lineDiscount=discountTotal*(lineBase/subtotal);return sum+Math.max(0,lineBase-lineDiscount)*(Number(x.tax_rate??x.tax??0)/100);},0):0;
+ const total=Math.max(0,taxable+tax);
  const add=p=>setCart(c=>{const old=c.find(x=>x.id===p.id);return old?c.map(x=>x.id===p.id?{...x,qty:Math.min(x.qty+1,Number(p.stock)||999999)}:x):[...c,{...p,price:Number(p.selling_price??p.price),qty:1}]});
  const finish=async()=>{if(!cart.length)return setNotice("Add at least one item.");if(cart.some(x=>Number(x.stock)<x.qty))return setNotice("One or more items do not have enough stock.");if(Number(paid||total)<total)return setNotice("Payment received is less than the total.");setBusy(true);setNotice("");try{
     const cartSnapshot=cart.map(x=>({...x}));
