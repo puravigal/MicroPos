@@ -205,3 +205,5 @@ select::-ms-expand{display:none}
 .csv-tools-message{flex-basis:100%;text-align:right;color:var(--muted);font-size:11px;line-height:1.4;overflow-wrap:anywhere}
 .section-title>.csv-tools{margin-left:auto}
 @media(max-width:700px){.section-title{align-items:flex-start;gap:12px}.section-title>.csv-tools{width:100%;justify-content:flex-start}.csv-tools-message{text-align:left}.csv-tools .secondary,.csv-import-label{font-size:12px;padding:9px 11px}}
+
+.auth-forgot-row{display:flex;justify-content:flex-end;margin-top:-8px;margin-bottom:8px}.auth-forgot-row .link-button{width:auto;padding:8px 0;font-size:13px;font-weight:600}
