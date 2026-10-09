@@ -207,3 +207,122 @@ select::-ms-expand{display:none}
 @media(max-width:700px){.section-title{align-items:flex-start;gap:12px}.section-title>.csv-tools{width:100%;justify-content:flex-start}.csv-tools-message{text-align:left}.csv-tools .secondary,.csv-import-label{font-size:12px;padding:9px 11px}}
 
 .auth-forgot-row{display:flex;justify-content:flex-end;margin-top:-8px;margin-bottom:8px}.auth-forgot-row .link-button{width:auto;padding:8px 0;font-size:13px;font-weight:600}
+
+
+/* Premium spacing system — calmer, more spacious workspace */
+:root{
+  --line:#e4e9f2;
+  --muted:#748096;
+  --soft:#f7f9fd;
+  --surface-shadow:0 4px 18px rgba(25,42,75,.045);
+  --surface-shadow-hover:0 10px 28px rgba(25,42,75,.075);
+}
+body{background:#f5f7fb;color:#172238;line-height:1.5}
+main{max-width:1660px}
+.topbar{height:76px;padding:0 32px}
+.workspace-shell{padding:30px 32px;grid-template-columns:224px minmax(0,1fr);gap:24px}
+.sidebar{padding:14px 12px;border-radius:20px;box-shadow:var(--surface-shadow);top:96px}
+.side-title{padding:10px 11px 12px;letter-spacing:.14em}
+.side-item{min-height:46px;padding:12px 13px;border-radius:12px;font-size:14px;gap:12px!important;transition:background .16s ease,color .16s ease}
+.side-item:hover:not(.selected){background:#f7f9fd;color:#33415b}
+.side-item.selected{background:#edf2ff;color:#235bde}
+.content{min-width:0}
+.page{display:flex;flex-direction:column;gap:22px}
+.page-head{align-items:center;gap:24px;margin-bottom:2px}
+.page-head h2{font-size:clamp(25px,2vw,31px);line-height:1.2;letter-spacing:-.035em}
+.page-head p:not(.eyebrow){font-size:14px;line-height:1.6;max-width:680px}
+.eyebrow{font-size:10px!important;letter-spacing:.16em;margin-bottom:9px!important}
+.head-actions{gap:12px}
+.primary,.secondary{min-height:44px;padding:12px 18px;border-radius:12px}
+.stats-grid{gap:18px;margin-bottom:0}
+.stat-card{padding:22px 22px 20px;border-radius:18px;box-shadow:var(--surface-shadow);min-height:124px;display:flex;flex-direction:column;justify-content:center}
+.stat-card span{font-size:13px;font-weight:650;letter-spacing:.005em}
+.stat-card strong{font-size:clamp(23px,2vw,29px);line-height:1.2;letter-spacing:-.035em;margin:10px 0 8px}
+.stat-card small{font-size:12px;line-height:1.5}
+.dashboard-grid{gap:22px}
+.dashboard-primary-grid{grid-template-columns:minmax(0,1.55fr) minmax(310px,1fr);margin-bottom:0}
+.card{padding:25px;border-radius:20px;box-shadow:var(--surface-shadow);transition:box-shadow .18s ease,border-color .18s ease}
+.card:hover{box-shadow:var(--surface-shadow-hover);border-color:#dce3ef}
+.section-title{gap:18px;margin-bottom:20px;align-items:center}
+.section-title h3,.card h3{font-size:17px;line-height:1.35;letter-spacing:-.02em}
+.section-title small,.card>h3+small{font-size:12px;line-height:1.55}
+.section-title button,.actions button,.card button:not(.primary):not(.product-tile):not(.side-item){padding:10px 13px;border-radius:10px}
+.sales-chart-card{min-height:370px}
+.chart-total{gap:12px;margin:18px 0 8px;flex-wrap:wrap}
+.chart-total strong{font-size:29px;letter-spacing:-.04em}
+.chart-total small{font-size:12px}
+.sales-chart{padding:6px 2px 0}
+.sales-chart svg{min-height:205px}
+.chart-label{font-size:12px}
+.quick-bill-card{gap:10px}
+.quick-bill-card>.section-title{margin-bottom:8px}
+.quick-action{gap:14px;padding:14px 12px;border-radius:14px;min-height:70px;border-color:#edf0f6}
+.quick-action:hover{background:#f8faff;border-color:#dce5fa;transform:translateY(-1px)}
+.quick-action-icon{flex-basis:42px;height:42px;border-radius:13px}
+.quick-action strong{font-size:13px;line-height:1.4}
+.quick-action small{font-size:11px;line-height:1.45;margin-top:5px}
+.list-row,.metric-row{gap:18px;padding:15px 4px}
+.list-row small{font-size:12px}
+.empty{padding:42px 18px;border-radius:14px}
+.form-card{margin-bottom:0}
+.form-grid{gap:18px;margin-bottom:18px}
+.field{gap:8px}
+.field span{font-size:12px}
+.field input,.field select{padding:12px 13px;border-radius:11px;min-height:44px}
+.table-wrap{border:1px solid #edf0f5;border-radius:14px}
+table{border-collapse:separate;border-spacing:0}
+th,td{padding:15px 14px}
+th{background:#f8faff}
+.settings-sections{gap:22px}
+.settings-list>div{padding:17px 0}
+.bottom-nav{box-shadow:0 -6px 24px rgba(25,42,75,.045)}
+@media(min-width:1500px){
+  .workspace-shell{padding:34px 38px;grid-template-columns:236px minmax(0,1fr);gap:28px}
+  .dashboard-grid,.dashboard-primary-grid{gap:24px}
+  .stats-grid{gap:20px}
+  .card{padding:28px}
+  .stat-card{padding:24px}
+}
+@media(max-width:1100px){
+  .workspace-shell{padding:22px;grid-template-columns:190px minmax(0,1fr);gap:18px}
+  .dashboard-primary-grid{grid-template-columns:minmax(0,1fr) minmax(270px,.9fr)}
+  .card{padding:20px}
+  .stats-grid{gap:12px}
+  .stat-card{padding:17px}
+}
+@media(max-width:800px){
+  .topbar{height:64px;padding:0 16px}
+  .workspace-shell{padding:18px 16px;display:block}
+  .page{gap:18px}
+  .page-head{gap:14px}
+  .page-head h2{font-size:25px}
+  .page-head p:not(.eyebrow){font-size:13px}
+  .stats-grid{gap:12px}
+  .stat-card{min-height:112px;padding:16px;border-radius:15px}
+  .stat-card strong{font-size:22px;margin:8px 0 6px}
+  .dashboard-grid,.dashboard-primary-grid,.settings-sections{grid-template-columns:1fr;gap:16px}
+  .card{padding:20px;border-radius:17px}
+  .section-title{margin-bottom:16px}
+  .sales-chart-card{min-height:0}
+  .sales-chart svg{min-height:0}
+  .quick-action{min-height:66px}
+  .mobile-head{padding:18px 16px 0}
+}
+@media(max-width:520px){
+  .workspace-shell{padding:14px 12px}
+  .page{gap:15px}
+  .page-head h2{font-size:23px}
+  .stats-grid{gap:10px}
+  .stat-card{padding:14px;min-height:104px}
+  .stat-card span{font-size:11px}
+  .stat-card strong{font-size:19px}
+  .stat-card small{font-size:10px}
+  .card{padding:16px;border-radius:15px}
+  .section-title{gap:10px}
+  .section-title h3,.card h3{font-size:16px}
+  .section-title button{padding:8px 10px!important;font-size:12px}
+  .chart-total strong{font-size:24px}
+  .quick-action{padding:12px 9px;gap:11px}
+  .quick-action-icon{flex-basis:38px;height:38px}
+  .form-grid,.form-grid.two,.form-grid.three{gap:13px}
+}
