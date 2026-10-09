@@ -167,6 +167,7 @@ const productSchema=z.object({
   purchase_price:money.default(0),
   min_stock:z.coerce.number().finite().nonnegative().default(0),
   tax_profile_id:uuid.optional().nullable(),
+  tax_rate:z.coerce.number().finite().min(0).max(100).optional(),
   category_id:uuid.optional().nullable(),
   hsn_sac:z.string().max(32).optional().nullable(),
   currency_code:z.string().regex(/^[A-Za-z]{3}$/).default("INR").transform(function(x){return x.toUpperCase();})
@@ -379,12 +380,27 @@ app.post("/api/categories",auth,roles("manager","inventory"),async function(req,
   catch(e){if(e.code==="23505")return fail(res,409,"DUPLICATE","Category already exists.");return fail(res,500,"CREATE_FAILED","Unable to create category.");}
 });
 
+async function resolveProductTaxProfile(orgId,rate){
+  const org=(await pool.query("select country_code from organizations where id=$1",[orgId])).rows[0];
+  const country=org?.country_code||"IN";
+  const name=(country==="IN"?"GST ":"Tax ")+Number(rate)+"%";
+  const components=country==="AE"?[{code:"VAT",rate:Number(rate)}]:country==="IN"?[{code:"GST",rate:Number(rate)}]:[{code:"TAX",rate:Number(rate)}];
+  const result=await pool.query(
+    "insert into tax_profiles(organization_id,name,country_code,tax_code,rate,components,is_zero_rated,is_exempt) values($1,$2,$3,$4,$5,$6,false,false) on conflict(organization_id,name) do update set rate=excluded.rate,components=excluded.components,country_code=excluded.country_code returning id",
+    [orgId,name,country,country==="IN"?"GST":country==="AE"?"VAT":"TAX",Number(rate),JSON.stringify(components)]
+  );
+  return result.rows[0].id;
+}
 async function createEntity(req,res,table,fields,schema,allowedRoles){
   if(!requireDb(res)) return;
   const p=schema.safeParse(req.body);
   if(!p.success) return fail(res,400,"VALIDATION_ERROR","Invalid data.",p.error.issues);
   if(allowedRoles && allowedRoles.length && !allowedRoles.includes(req.user.role) && req.user.role!=="owner") return fail(res,403,"FORBIDDEN","You do not have permission for this action.");
   const d=p.data;
+  if(table==="products" && d.tax_rate!==undefined){
+    try{d.tax_profile_id=await resolveProductTaxProfile(req.user.orgId,d.tax_rate);delete d.tax_rate;}
+    catch(e){return fail(res,500,"TAX_PROFILE_FAILED","Unable to save the product tax rate.");}
+  }
   if(table==="customers" && (!d.email || typeof d.email!=="string" || !d.email.trim())) return fail(res,400,"CUSTOMER_EMAIL_REQUIRED","Customer email is required.");
   if(table==="customers" && typeof d.email==="string"){
     d.email=d.email.trim().toLowerCase()||null;
@@ -430,7 +446,9 @@ app.patch("/api/products/:id",auth,roles("manager","inventory"),async function(r
   try{
     const before=(await pool.query("select * from products where id=$1 and organization_id=$2",[req.params.id,req.user.orgId])).rows[0];
     if(!before) return fail(res,404,"NOT_FOUND","Product not found.");
-    const d=p.data, keys=Object.keys(d).filter(function(k){return d[k]!==undefined;});
+    const d=p.data;
+    if(d.tax_rate!==undefined){d.tax_profile_id=await resolveProductTaxProfile(req.user.orgId,d.tax_rate);delete d.tax_rate;}
+    const keys=Object.keys(d).filter(function(k){return d[k]!==undefined;});
     if(!keys.length) return ok(res,before);
     const sets=keys.map(function(k,i){return k+"=$"+(i+2)}).join(",");
     const q=await pool.query("update products set "+sets+",updated_at=now() where id=$1 and organization_id=$"+(keys.length+2)+" returning *",[req.params.id].concat(keys.map(function(k){return d[k]}),[req.user.orgId]));
