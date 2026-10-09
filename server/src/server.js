@@ -350,6 +350,7 @@ async function createEntity(req,res,table,fields,schema,allowedRoles){
   if(!p.success) return fail(res,400,"VALIDATION_ERROR","Invalid data.",p.error.issues);
   if(allowedRoles && allowedRoles.length && !allowedRoles.includes(req.user.role) && !["owner","admin"].includes(req.user.role)) return fail(res,403,"FORBIDDEN","You do not have permission for this action.");
   const d=p.data;
+  if(table==="customers" && (!d.email || typeof d.email!=="string" || !d.email.trim())) return fail(res,400,"CUSTOMER_EMAIL_REQUIRED","Customer email is required.");
   if(table==="customers" && typeof d.email==="string"){
     d.email=d.email.trim().toLowerCase()||null;
     if(d.email){
