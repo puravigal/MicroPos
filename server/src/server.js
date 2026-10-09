@@ -108,6 +108,12 @@ function ensureInviteTable(){
   if(!inviteTableReady) inviteTableReady=pool.query("create table if not exists organization_invites (organization_id uuid primary key references organizations(id) on delete cascade, invite_code text not null unique, created_at timestamptz not null default now())").catch(function(e){inviteTableReady=null;throw e;});
   return inviteTableReady;
 }
+let gstColumnReady;
+function ensureGstColumn(){
+  if(!pool)return Promise.reject(Object.assign(new Error("Database not configured"),{code:"DATABASE_NOT_CONFIGURED"}));
+  if(!gstColumnReady)gstColumnReady=pool.query("alter table organizations add column if not exists gst_enabled boolean not null default false").catch(function(e){gstColumnReady=null;throw e;});
+  return gstColumnReady;
+}
 async function audit(client,req,action,entityType,entityId,beforeData,afterData){
   await client.query(
     "insert into audit_logs(organization_id,user_id,action,entity_type,entity_id,before_data,after_data,ip_address,user_agent) values($1,$2,$3,$4,$5,$6,$7,$8,$9)",
@@ -454,6 +460,7 @@ async function nextNumber(client,orgId,storeId,prefix,kind){
 
 app.post("/api/sales",auth,roles("cashier","manager"),async function(req,res){
   if(!requireDb(res)) return;
+  try{await ensureGstColumn();}catch(e){return fail(res,500,"TAX_MIGRATION_FAILED","Unable to prepare tax settings.");}
   const p=saleSchema.safeParse(req.body);
   if(!p.success)return fail(res,400,"VALIDATION_ERROR","Invalid sale.",p.error.issues);
   const d=p.data;
@@ -487,10 +494,11 @@ app.post("/api/sales",auth,roles("cashier","manager"),async function(req,res){
         const lineGross=unitPrice*Number(item.quantity);
         const lineDiscount=Math.min(Number(item.discount_amount),lineGross);
         const taxable=Math.max(0,lineGross-lineDiscount);
-        const lineTax=taxable*Number(product.tax_rate)/100;
+        const effectiveTaxRate=org.gst_enabled?Number(product.tax_rate):0;
+        const lineTax=taxable*effectiveTaxRate/100;
         const lineTotal=taxable+lineTax;
         subtotal+=lineGross; taxTotal+=lineTax; discount+=lineDiscount;
-        lines.push({product:product,quantity:Number(item.quantity),unitPrice:unitPrice,discount:lineDiscount,taxable:taxable,taxRate:Number(product.tax_rate),tax:lineTax,total:lineTotal,stock:stock});
+        lines.push({product:product,quantity:Number(item.quantity),unitPrice:unitPrice,discount:lineDiscount,taxable:taxable,taxRate:effectiveTaxRate,tax:lineTax,total:lineTotal,stock:stock});
       }
       const grand=Math.max(0,subtotal-discount+taxTotal);
       const paid=Math.min(Number(d.payment_amount === undefined ? grand : d.payment_amount),grand);
@@ -674,14 +682,16 @@ app.get("/api/dashboard",auth,roles("owner"),async function(req,res){
 
 app.get("/api/settings",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
+  try{await ensureGstColumn();}catch(e){return fail(res,500,"SETTINGS_MIGRATION_FAILED","Unable to prepare business settings.");}
   const [o,b]=await Promise.all([
-    pool.query("select id,name,legal_name,country_code,currency_code,timezone,locale,tax_registration_number,tax_registration_type,address from organizations where id=$1",[req.user.orgId]),
+    pool.query("select id,name,legal_name,country_code,currency_code,timezone,locale,tax_registration_number,tax_registration_type,gst_enabled,address from organizations where id=$1",[req.user.orgId]),
     pool.query("select * from business_settings where organization_id=$1",[req.user.orgId])
   ]);
   return ok(res,{organization:o.rows[0],business:b.rows[0]});
 });
 app.patch("/api/settings",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
+  try{await ensureGstColumn();}catch(e){return fail(res,500,"SETTINGS_MIGRATION_FAILED","Unable to prepare business settings.");}
   const p=z.object({
     name:z.string().trim().min(1).max(200).optional(),
     legal_name:z.string().max(200).optional().nullable(),
@@ -691,6 +701,7 @@ app.patch("/api/settings",auth,roles("owner"),async function(req,res){
     locale:z.string().max(20).optional(),
     tax_registration_number:z.string().max(100).optional().nullable(),
     tax_registration_type:z.string().max(50).optional().nullable(),
+    gst_enabled:z.boolean().optional(),
     invoice_prefix:z.string().regex(/^[A-Za-z0-9_-]{1,12}$/).optional(),
     tax_mode:z.enum(["inclusive","exclusive"]).optional(),
     negative_stock_allowed:z.boolean().optional(),
@@ -701,7 +712,7 @@ app.patch("/api/settings",auth,roles("owner"),async function(req,res){
   try{
     const result=await runTx(async function(client){
       const before=(await client.query("select * from organizations where id=$1",[req.user.orgId])).rows[0];
-      const d=p.data, orgKeys=["name","legal_name","country_code","currency_code","timezone","locale","tax_registration_number","tax_registration_type"];
+      const d=p.data, orgKeys=["name","legal_name","country_code","currency_code","timezone","locale","tax_registration_number","tax_registration_type","gst_enabled"];
       const keys=Object.keys(d).filter(function(k){return orgKeys.includes(k) && d[k]!==undefined;});
       if(keys.length)await client.query("update organizations set "+keys.map(function(k,i){return k+"=$"+(i+2)}).join(",")+",updated_at=now() where id=$1",[req.user.orgId].concat(keys.map(function(k){return d[k]})));
       const bsKeys=["invoice_prefix","tax_mode","negative_stock_allowed","default_payment_method","receipt_width"];
