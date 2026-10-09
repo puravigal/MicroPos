@@ -106,3 +106,7 @@ main{max-width:1500px;margin:auto}.mobile-head{display:none}.workspace-shell{pad
 .account-menu>button.account-signout{color:#c52e47}
 .account-menu>button.account-signout:hover{background:#fff2f4;color:#b51f38}
 @media(max-width:800px){.account-area{position:static}.account-menu{position:fixed;right:12px;top:68px}.account-dismiss{z-index:70}.user-chip{padding:3px}.user-avatar{width:34px;height:34px}.user-identity,.account-chevron{display:none}}
+
+.modal-form-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
+.muted-copy{font-size:12px;line-height:1.55;color:var(--muted);margin:0 0 16px}
+@media(max-width:800px){.head-actions .searchbox{flex:1;min-width:130px}.head-actions>.primary{white-space:nowrap}}
