@@ -53,6 +53,7 @@ export const api={
   dashboard:()=>request("/api/dashboard"),
   reports:(range)=>request("/api/reports/summary?range="+encodeURIComponent(range)),
   settings:()=>request("/api/settings"),
+  businessProfile:()=>request("/api/business-profile"),
   updateSettings:(body)=>request("/api/settings",{method:"PATCH",body:JSON.stringify(body)}),
   audit:()=>request("/api/audit"),
   notifications:()=>request("/api/notifications"),
