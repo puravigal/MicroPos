@@ -326,3 +326,34 @@ th{background:#f8faff}
   .quick-action-icon{flex-basis:38px;height:38px}
   .form-grid,.form-grid.two,.form-grid.three{gap:13px}
 }
+
+
+/* Keep recent-sale invoice rows visually separated */
+.card .recent-sale-button{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:18px;
+  width:100%;
+  margin-top:10px;
+  padding:17px 16px;
+  border:1px solid #e0e6f0!important;
+  border-top:1px solid #e0e6f0!important;
+  border-radius:14px!important;
+  background:#fff!important;
+  color:inherit;
+  text-align:left;
+  box-shadow:0 1px 2px rgba(20,35,65,.025);
+}
+.card .recent-sale-button:first-of-type{margin-top:0}
+.card .recent-sale-button:hover{background:#f8faff!important;border-color:#cbd8f4!important}
+.card .recent-sale-button>div{min-width:0}
+.card .recent-sale-button>div strong{font-size:15px;line-height:1.35}
+.card .recent-sale-button>div small{font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.card .recent-sale-button>b{font-size:15px;white-space:nowrap}
+.card .recent-sale-open{font-size:12px}
+@media(max-width:600px){
+  .card .recent-sale-button{grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;padding:14px}
+  .card .recent-sale-button>b{grid-column:1;grid-row:2;font-size:14px}
+  .card .recent-sale-open{grid-column:2;grid-row:1 / span 2;align-self:center;font-size:11px}
+}
