@@ -173,3 +173,25 @@ button.primary:disabled{filter:grayscale(.12);box-shadow:none}
 .status-pill{display:inline-flex;align-items:center;border-radius:999px;padding:5px 9px;background:#fff1f2;color:#b4233a;font-size:11px;font-weight:750}
 .status-pill.active{background:#e9f9f1;color:#128254}
 @media(max-width:700px){.invite-code-row{align-items:stretch;flex-direction:column}.invite-actions>*{flex:1}.role-select{min-width:200px}}
+
+
+/* Consistent dropdown arrow across every native select in the POS */
+select:not([multiple]):not([size]){
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  appearance:none;
+  padding-right:38px!important;
+  background-color:#fff;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23727c90' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")!important;
+  background-repeat:no-repeat!important;
+  background-position:right 12px center!important;
+  background-size:16px 16px!important;
+  cursor:pointer
+}
+select:not([multiple]):not([size]):disabled{cursor:not-allowed;background-color:#f7f8fb}
+select::-ms-expand{display:none}
+.return-load-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px;margin-bottom:14px}
+.return-load-row .field{min-width:0}
+.return-invoice-summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 12px;border:1px solid #e0e6f1;border-radius:10px;background:#f8faff;margin:-2px 0 14px;color:#657086;font-size:12px}
+.return-invoice-summary strong{color:#182033;font-size:13px}
+@media(max-width:600px){.return-load-row{grid-template-columns:1fr}.return-load-row button{width:100%}}
