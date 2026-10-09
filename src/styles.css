@@ -138,3 +138,14 @@ main{max-width:1500px;margin:auto}.mobile-head{display:none}.workspace-shell{pad
 button.primary,.auth-card button[type="submit"],.modal-form-actions button.primary{background:var(--brand-gradient)!important}
 button.primary:focus-visible,.secondary:focus-visible{outline:3px solid #7136bb45;outline-offset:2px}
 button.primary:disabled{filter:grayscale(.12);box-shadow:none}
+
+
+/* Fast, accessible dashboard chart hover tooltip */
+.chart-point{cursor:default;outline:none}
+.chart-point:focus-visible .chart-hit-area{stroke:#7136bb;stroke-width:1.5;stroke-dasharray:3 3}
+.chart-tooltip-bg{fill:#182033;stroke:#ffffff;stroke-opacity:.15;stroke-width:1;filter:drop-shadow(0 3px 5px #18203330)}
+.chart-tooltip-text{fill:#fff;font-size:10px;font-weight:800;pointer-events:none}
+.chart-bar{transition:fill .12s ease}
+.chart-point:hover .chart-bar,.chart-point:focus .chart-bar{fill:#7136bb}
+.chart-point:hover .chart-bar-today,.chart-point:focus .chart-bar-today{fill:#e60063}
+@media(max-width:800px){.dashboard-primary-grid{grid-template-columns:minmax(0,1fr)}.sales-chart-card{min-width:0}.sales-chart{overflow:visible}}
