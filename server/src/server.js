@@ -552,9 +552,12 @@ function sbSafe(){ return true; }
 
 app.get("/api/invoices",auth,async function(req,res){
   if(!requireDb(res))return;
+  // Invoice rows must include the actual payment record; otherwise the UI falls
+  // back to "cash" for every invoice even when UPI/card was selected.
+  const invoiceSelect="select i.*,coalesce(c.name,'Walk-in customer') customer_name,coalesce((select p.method from payments p where p.invoice_id=i.id order by p.created_at asc limit 1),'cash') payment_method,coalesce((select sum(p.amount) from payments p where p.invoice_id=i.id),i.paid_total,0) payment_amount from invoices i left join customers c on c.id=i.customer_id";
   const r=req.user.role==="owner"
-    ? await pool.query("select i.*,coalesce(c.name,'Walk-in customer') customer_name from invoices i left join customers c on c.id=i.customer_id where i.organization_id=$1 order by i.created_at desc limit 200",[req.user.orgId])
-    : await pool.query("select i.*,coalesce(c.name,'Walk-in customer') customer_name from invoices i left join customers c on c.id=i.customer_id where i.organization_id=$1 and i.created_by=$2 order by i.created_at desc limit 200",[req.user.orgId,req.user.sub]);
+    ? await pool.query(invoiceSelect+" where i.organization_id=$1 order by i.created_at desc limit 200",[req.user.orgId])
+    : await pool.query(invoiceSelect+" where i.organization_id=$1 and i.created_by=$2 order by i.created_at desc limit 200",[req.user.orgId,req.user.sub]);
   return ok(res,{items:r.rows});
 });
 
