@@ -431,3 +431,8 @@ th{background:#f8faff}
 .cart-row>.qty>b{width:24px;min-width:24px;text-align:center;line-height:32px;}
 .cart-row>strong:last-child{text-align:right;white-space:nowrap;align-self:center;}
 @media(max-width:760px){.cart-row{grid-template-columns:minmax(0,1fr) 100px;column-gap:8px;}.cart-row>.qty{grid-template-columns:30px 20px 30px;min-width:86px;gap:3px;}.cart-row>.qty>.qty-control-btn{width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important;}.cart-row>strong:last-child{grid-column:1/-1;text-align:right;}}
+
+
+/* Settings save reminder — scoped to the Settings page only. */
+.settings-unsaved-notice{display:flex;flex-direction:column;gap:4px;margin-top:14px;padding:12px 14px;border:1px solid #f0c36d;border-radius:10px;background:#fff9e9;color:#7a4b00;font-size:13px;line-height:1.45;}
+.settings-unsaved-notice strong{font-weight:700;}
