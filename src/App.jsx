@@ -78,7 +78,7 @@ function Auth({onLogin}){
      if(form.password.length<8){setError("Password must contain at least 8 characters.");return;}
    }
    if(mode==="reset"){
-     if(!/^\\d{6}$/.test(form.otp)){setError("Enter the 6-digit OTP from your email.");return;}
+     if(!/^\d{6}$/.test(form.otp)){setError("Enter the 6-digit OTP from your email.");return;}
      if(form.password.length<8){setError("New password must contain at least 8 characters.");return;}
      if(form.password!==form.confirmPassword){setError("New password and confirmation do not match.");return;}
    }
@@ -109,7 +109,7 @@ function Auth({onLogin}){
  {mode==="login"&&<Field label="Password" type="password" autoComplete="current-password" value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/>}
  {mode==="login"&&<div className="auth-forgot-row"><button type="button" className="link-button" onClick={()=>{setMode("forgot");setError("");setNotice("");}}>Forgot password?</button></div>}
  {mode==="signup"&&<Field label="Password (minimum 8 characters)" type="password" autoComplete="new-password" minLength={8} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/>}
- {mode==="reset"&&<><Field label="6-digit OTP" inputMode="numeric" autoComplete="one-time-code" value={form.otp} required placeholder="Enter OTP from email" onChange={e=>setForm({...form,otp:e.target.value.replace(/\\D/g,"").slice(0,6)})}/><Field label="New password (minimum 8 characters)" type="password" autoComplete="new-password" minLength={8} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/><Field label="Confirm new password" type="password" autoComplete="new-password" minLength={8} value={form.confirmPassword} required onChange={e=>setForm({...form,confirmPassword:e.target.value})}/></>}
+ {mode==="reset"&&<><Field label="6-digit OTP" inputMode="numeric" autoComplete="one-time-code" value={form.otp} required placeholder="Enter OTP from email" onChange={e=>setForm({...form,otp:e.target.value.replace(/\D/g,"").slice(0,6)})}/><Field label="New password (minimum 8 characters)" type="password" autoComplete="new-password" minLength={8} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/><Field label="Confirm new password" type="password" autoComplete="new-password" minLength={8} value={form.confirmPassword} required onChange={e=>setForm({...form,confirmPassword:e.target.value})}/></>}
  <button className="primary wide" disabled={busy}>{busy?"Please wait…":mode==="login"?"Sign in":mode==="signup"?"Create account":mode==="forgot"?"Send reset OTP":"Reset password"}</button>
  </form>
  <div className="auth-secondary-actions">{mode==="reset"&&<button className="link-button" disabled={busy} onClick={async()=>{setBusy(true);setError("");setNotice("");try{const r=await api.requestPasswordReset(form.email.trim());setForm(f=>({...f,otp:"",password:"",confirmPassword:""}));setNotice(r.message||"If an account exists, a new OTP has been sent.");}catch(e){setError(e.message||"Unable to request a new OTP.");}finally{setBusy(false);}}}>Resend OTP</button>}<button className="link-button" disabled={busy} onClick={()=>{setMode(mode==="signup"?"login":(mode==="login"?"signup":"login"));setError("");setNotice("");}}>{mode==="signup"?"Already have an account? Sign in":mode==="login"?"Create an account":"Back to sign in"}</button></div>
