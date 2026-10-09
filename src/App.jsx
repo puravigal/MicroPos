@@ -118,7 +118,7 @@ function Auth({onLogin}){
 function Dashboard({data,settings,onGo,apiMode,currentUser}){
  const [selectedInvoice,setSelectedInvoice]=useState(null),[hoveredDay,setHoveredDay]=useState(null),[now,setNow]=useState(()=>new Date());
  useEffect(()=>{const timer=setInterval(()=>setNow(new Date()),60000);return ()=>clearInterval(timer);},[]);
- const displayName=String(currentUser?.display_name||"").trim().split(/\\s+/)[0];
+ const displayName=String(currentUser?.display_name||"").trim().split(/\s+/)[0];
  const timezone=settings.timezone||undefined;
  let hour=now.getHours();
  try{hour=Number(new Intl.DateTimeFormat("en-US",{hour:"2-digit",hourCycle:"h23",timeZone:timezone}).format(now));}catch{}
