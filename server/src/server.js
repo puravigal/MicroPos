@@ -89,9 +89,10 @@ async function auth(req,res,next){
   try {
     const claims=jwt.verify(header.slice(7),JWT_SECRET,{issuer:"puravigal-pos"});
     if(!pool)return fail(res,503,"DATABASE_NOT_CONFIGURED","Database is not configured.");
-    const membership=await pool.query("select ou.role from organization_users ou join users u on u.id=ou.user_id where ou.organization_id=$1 and ou.user_id=$2 and u.is_active=true",[claims.orgId,claims.sub]);
+    await ensureTeamPermissionsColumn();
+    const membership=await pool.query("select ou.role,ou.permissions from organization_users ou join users u on u.id=ou.user_id where ou.organization_id=$1 and ou.user_id=$2 and u.is_active=true",[claims.orgId,claims.sub]);
     if(!membership.rowCount)return fail(res,401,"SESSION_REVOKED","This account no longer has access to the business.");
-    req.user={...claims,role:membership.rows[0].role==="owner"?"owner":"cashier"};
+    req.user={...claims,role:membership.rows[0].role,permissions:Array.isArray(membership.rows[0].permissions)?membership.rows[0].permissions:["billing","customers","inventory"]};
     return next();
   }catch(e){ return fail(res,401,"SESSION_EXPIRED","Session is invalid or expired."); }
 }
@@ -99,14 +100,17 @@ function roles(){
   const allowed = Array.prototype.slice.call(arguments);
   return function(req,res,next){
     if(req.user.role === "owner" || allowed.includes(req.user.role)) return next();
+    const permissions=req.user.permissions||[];
+    if(allowed.includes("cashier")&&permissions.includes("billing"))return next();
+    if(allowed.includes("inventory")&&permissions.includes("inventory"))return next();
     return fail(res,403,"FORBIDDEN","You do not have permission for this action.");
   };
 }
-let inviteTableReady;
-function ensureInviteTable(){
-  if(!pool) return Promise.reject(Object.assign(new Error("Database not configured"),{code:"DATABASE_NOT_CONFIGURED"}));
-  if(!inviteTableReady) inviteTableReady=pool.query("create table if not exists organization_invites (organization_id uuid primary key references organizations(id) on delete cascade, invite_code text not null unique, created_at timestamptz not null default now())").catch(function(e){inviteTableReady=null;throw e;});
-  return inviteTableReady;
+let teamPermissionsReady;
+function ensureTeamPermissionsColumn(){
+  if(!pool)return Promise.reject(Object.assign(new Error("Database not configured"),{code:"DATABASE_NOT_CONFIGURED"}));
+  if(!teamPermissionsReady)teamPermissionsReady=pool.query("alter table organization_users add column if not exists permissions jsonb not null default '[\"billing\",\"customers\",\"inventory\"]'::jsonb").catch(function(e){teamPermissionsReady=null;throw e;});
+  return teamPermissionsReady;
 }
 let gstColumnReady;
 function ensureGstColumn(){
@@ -146,17 +150,12 @@ const signupSchema=z.object({
   email:z.string().email().max(320),
   password:z.string().min(8).max(128),
   display_name:z.string().trim().min(1).max(120),
-  business_name:z.string().trim().max(200).optional().default(""),
-  phone:z.string().trim().min(7).max(40),
+  business_name:z.string().trim().min(1).max(200),
+  phone:z.string().trim().max(40).optional().default(""),
   country_code:z.string().regex(/^[A-Za-z]{2}$/).default("IN").transform(function(x){return x.toUpperCase();}),
   currency_code:z.string().regex(/^[A-Za-z]{3}$/).default("INR").transform(function(x){return x.toUpperCase();}),
   timezone:z.string().min(1).max(80).default("Asia/Kolkata"),
-  locale:z.string().min(2).max(20).default("en-IN"),
-  account_type:z.enum(["super_admin","user"]).default("super_admin"),
-  invite_code:z.string().trim().max(80).optional()
-}).superRefine(function(d,ctx){
-  if(d.account_type==="super_admin"&&!d.business_name.trim())ctx.addIssue({code:z.ZodIssueCode.custom,path:["business_name"],message:"Business name is required for Super Admin signup."});
-  if(d.account_type==="user"&&!d.invite_code)ctx.addIssue({code:z.ZodIssueCode.custom,path:["invite_code"],message:"Business invite code is required for Normal User signup."});
+  locale:z.string().min(2).max(20).default("en-IN")
 });
 const productSchema=z.object({
   name:z.string().trim().min(1).max(200),
@@ -232,32 +231,23 @@ app.post("/api/auth/signup",authLimiter,async function(req,res){
   if(!p.success) return fail(res,400,"VALIDATION_ERROR","Please check the signup details.",p.error.issues);
   const d=p.data;
   try{
-    if(d.account_type==="user") await ensureInviteTable();
+    await ensureTeamPermissionsColumn();
     const result=await runTx(async function(client){
       const exists=await client.query("select 1 from users where lower(email)=lower($1)",[d.email]);
       if(exists.rowCount) throw Object.assign(new Error("Email exists"),{code:"EMAIL_EXISTS"});
       const hash=await bcrypt.hash(d.password,12);
-      const user=(await client.query("insert into users(email,password_hash,display_name,phone,is_verified) values(lower($1),$2,$3,$4,true) returning id,email,display_name,phone",[d.email,hash,d.display_name,d.phone])).rows[0];
-      if(d.account_type==="user"){
-        const invite=await client.query("select organization_id from organization_invites where upper(invite_code)=upper($1)",[d.invite_code||""]);
-        if(!invite.rowCount) throw Object.assign(new Error("Invalid business invite code"),{code:"INVALID_INVITE"});
-        const org=(await client.query("select id,name,country_code,currency_code,timezone,locale from organizations where id=$1",[invite.rows[0].organization_id])).rows[0];
-        await client.query("insert into organization_users(organization_id,user_id,role) values($1,$2,'cashier')",[org.id,user.id]);
-        const session=await issueSession(client,user,org.id,"cashier");
-        return {user:user,organization:org,organization_id:org.id,role:"cashier",session:session};
-      }
+      const user=(await client.query("insert into users(email,password_hash,display_name,phone,is_verified) values(lower($1),$2,$3,$4,true) returning id,email,display_name,phone",[d.email,hash,d.display_name,d.phone||null])).rows[0];
       const org=(await client.query("insert into organizations(name,country_code,currency_code,timezone,locale) values($1,$2,$3,$4,$5) returning id,name,country_code,currency_code,timezone,locale",[d.business_name,d.country_code,d.currency_code,d.timezone,d.locale])).rows[0];
-      await client.query("insert into organization_users(organization_id,user_id,role) values($1,$2,'owner')",[org.id,user.id]);
+      await client.query("insert into organization_users(organization_id,user_id,role,permissions) values($1,$2,'owner',$3)",[org.id,user.id,JSON.stringify(["billing","customers","inventory","products","purchases","suppliers","reports","returns","settings"])]);
       await client.query("insert into stores(organization_id,name,code) values($1,$2,'MAIN')",[org.id,d.business_name]);
       await client.query("insert into business_settings(organization_id) values($1)",[org.id]);
       await client.query("insert into tax_profiles(organization_id,name,country_code,rate,components,is_zero_rated,is_exempt) values($1,$2,$3,$4,$5,false,false)",[org.id,d.country_code==="AE"?"UAE VAT 5%":"Standard Tax",d.country_code,d.country_code==="AE"?5:0,JSON.stringify(d.country_code==="AE"?[{code:"VAT",rate:5}]:[])]);
       const session=await issueSession(client,user,org.id,"owner");
-      return {user:user,organization:org,organization_id:org.id,role:"owner",session:session};
+      return {user:user,organization:org,organization_id:org.id,role:"owner",permissions:["billing","customers","inventory","products","purchases","suppliers","reports","returns","settings"],session:session};
     });
     return ok(res,result,201);
   }catch(e){
     if(e.code==="EMAIL_EXISTS") return fail(res,409,"EMAIL_EXISTS","An account with this email already exists.");
-    if(e.code==="INVALID_INVITE") return fail(res,400,"INVALID_INVITE","That business invite code is invalid. Ask your Super Admin for the current code.");
     console.error(e); return fail(res,500,"SIGNUP_FAILED","Unable to create the account.");
   }
 });
@@ -320,11 +310,12 @@ app.post("/api/auth/login",authLimiter,async function(req,res){
   const p=z.object({email:z.string().email(),password:z.string().min(1)}).safeParse(req.body);
   if(!p.success) return fail(res,400,"VALIDATION_ERROR","Email and password are required.");
   try{
-    const q=await pool.query("select u.id,u.email,u.display_name,u.password_hash,ou.organization_id,ou.role,o.name organization_name,o.country_code,o.currency_code,o.timezone,o.locale from users u join organization_users ou on ou.user_id=u.id join organizations o on o.id=ou.organization_id where lower(u.email)=lower($1) and u.is_active=true order by case when ou.role='owner' then 0 else 1 end,ou.created_at limit 1",[p.data.email]);
+    await ensureTeamPermissionsColumn();
+    const q=await pool.query("select u.id,u.email,u.display_name,u.password_hash,ou.organization_id,ou.role,ou.permissions,o.name organization_name,o.country_code,o.currency_code,o.timezone,o.locale from users u join organization_users ou on ou.user_id=u.id join organizations o on o.id=ou.organization_id where lower(u.email)=lower($1) and u.is_active=true order by case when ou.role='owner' then 0 else 1 end,ou.created_at limit 1",[p.data.email]);
     if(!q.rowCount || !q.rows[0].password_hash || !(await bcrypt.compare(p.data.password,q.rows[0].password_hash))) return fail(res,401,"INVALID_CREDENTIALS","Email or password is incorrect.");
     const x=q.rows[0], user={id:x.id,email:x.email,display_name:x.display_name};
     const session=await runTx(function(client){return issueSession(client,user,x.organization_id,x.role);});
-    return ok(res,{user:user,organization_id:x.organization_id,organization:{name:x.organization_name,country_code:x.country_code,currency_code:x.currency_code,timezone:x.timezone,locale:x.locale},role:x.role,session:session});
+    return ok(res,{user:user,organization_id:x.organization_id,organization:{name:x.organization_name,country_code:x.country_code,currency_code:x.currency_code,timezone:x.timezone,locale:x.locale},role:x.role,permissions:x.permissions||["billing","customers","inventory"],session:session});
   }catch(e){console.error(e);return fail(res,500,"LOGIN_FAILED","Unable to sign in.");}
 });
 
@@ -355,7 +346,8 @@ app.post("/api/auth/logout",auth,async function(req,res){
 
 app.get("/api/me",auth,async function(req,res){
   if(!requireDb(res)) return;
-  const q=await pool.query("select u.id,u.email,u.display_name,ou.organization_id,ou.role,o.name organization_name,o.country_code,o.currency_code,o.timezone,o.locale from users u join organization_users ou on ou.user_id=u.id join organizations o on o.id=ou.organization_id where u.id=$1 and o.id=$2",[req.user.sub,req.user.orgId]);
+  await ensureTeamPermissionsColumn();
+  const q=await pool.query("select u.id,u.email,u.display_name,ou.organization_id,ou.role,ou.permissions,o.name organization_name,o.country_code,o.currency_code,o.timezone,o.locale from users u join organization_users ou on ou.user_id=u.id join organizations o on o.id=ou.organization_id where u.id=$1 and o.id=$2",[req.user.sub,req.user.orgId]);
   if(!q.rowCount) return fail(res,404,"NOT_FOUND","Account not found.");
   return ok(res,q.rows[0]);
 });
@@ -579,7 +571,7 @@ app.get("/api/invoices/:id",auth,async function(req,res){
   return ok(res,{invoice:invoice,items:items.rows,payments:payments.rows});
 });
 
-app.post("/api/purchases",auth,roles("manager","inventory"),async function(req,res){
+app.post("/api/purchases",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   const p=purchaseSchema.safeParse(req.body);if(!p.success)return fail(res,400,"VALIDATION_ERROR","Invalid purchase.",p.error.issues);
   const d=p.data;
@@ -765,27 +757,32 @@ app.patch("/api/settings",auth,roles("owner"),async function(req,res){
 });
 
 
-app.get("/api/users/invite-code",auth,roles("owner"),async function(req,res){
+app.post("/api/users",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   try{
-    await ensureInviteTable();
-    const q=await pool.query("select invite_code,created_at from organization_invites where organization_id=$1",[req.user.orgId]);
-    return ok(res,{invite_code:q.rows[0]?.invite_code||null,created_at:q.rows[0]?.created_at||null});
-  }catch(e){console.error(e);return fail(res,500,"INVITE_CODE_FAILED","Unable to load the business invite code.");}
-});
-app.post("/api/users/invite-code",auth,roles("owner"),async function(req,res){
-  if(!requireDb(res))return;
-  try{
-    await ensureInviteTable();
-    const code=crypto.randomBytes(6).toString("hex").toUpperCase();
-    const q=await pool.query("insert into organization_invites(organization_id,invite_code) values($1,$2) on conflict(organization_id) do update set invite_code=excluded.invite_code,created_at=now() returning invite_code,created_at",[req.user.orgId,code]);
-    await audit(pool,req,"rotate","organization_invite",req.user.orgId,null,{invite_code:code});
-    return ok(res,q.rows[0],201);
-  }catch(e){console.error(e);return fail(res,500,"INVITE_CODE_FAILED","Unable to generate a business invite code.");}
+    await ensureTeamPermissionsColumn();
+    const p=z.object({email:z.string().email().max(320),display_name:z.string().trim().min(1).max(120),password:z.string().min(8).max(128)}).safeParse(req.body);
+    if(!p.success)return fail(res,400,"VALIDATION_ERROR","Enter a valid email, name, and password of at least 8 characters.",p.error.issues);
+    const result=await runTx(async function(client){
+      const exists=await client.query("select 1 from users where lower(email)=lower($1)",[p.data.email]);
+      if(exists.rowCount)throw Object.assign(new Error("Email exists"),{code:"EMAIL_EXISTS"});
+      const passwordHash=await bcrypt.hash(p.data.password,12);
+      const created=(await client.query("insert into users(email,password_hash,display_name,is_verified) values(lower($1),$2,$3,true) returning id,email,display_name,is_active,created_at",[p.data.email,passwordHash,p.data.display_name])).rows[0];
+      const permissions=["billing","customers","inventory"];
+      await client.query("insert into organization_users(organization_id,user_id,role,permissions) values($1,$2,'cashier',$3)",[req.user.orgId,created.id,JSON.stringify(permissions)]);
+      await audit(client,req,"create","team_user",created.id,null,{email:created.email,role:"cashier",permissions:permissions});
+      return {...created,role:"cashier",permissions:permissions};
+    });
+    return ok(res,result,201);
+  }catch(e){
+    if(e.code==="EMAIL_EXISTS")return fail(res,409,"EMAIL_EXISTS","An account with this email already exists.");
+    console.error(e);return fail(res,500,"USER_CREATE_FAILED","Unable to create the staff account.");
+  }
 });
 app.get("/api/users",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
-  const r=await pool.query("select u.id,u.email,u.display_name,u.phone,u.is_verified,u.is_active,ou.role,ou.created_at from users u join organization_users ou on ou.user_id=u.id where ou.organization_id=$1 order by ou.created_at",[req.user.orgId]);
+  await ensureTeamPermissionsColumn();
+  const r=await pool.query("select u.id,u.email,u.display_name,u.phone,u.is_verified,u.is_active,ou.role,ou.permissions,ou.created_at from users u join organization_users ou on ou.user_id=u.id where ou.organization_id=$1 order by ou.created_at",[req.user.orgId]);
   return ok(res,{items:r.rows});
 });
 app.patch("/api/users/:id/role",auth,roles("owner"),async function(req,res){
@@ -801,7 +798,7 @@ app.patch("/api/users/:id/role",auth,roles("owner"),async function(req,res){
   }catch(e){return fail(res,500,"ROLE_UPDATE_FAILED","Unable to update role.");}
 });
 
-app.post("/api/imports/preview",auth,roles("owner","admin","manager","inventory"),async function(req,res){
+app.post("/api/imports/preview",auth,roles("owner","admin","manager"),async function(req,res){
   if(!requireDb(res))return;
   const p=z.object({entity_type:z.enum(["products","customers","suppliers"]),source_filename:z.string().max(255).optional(),rows:z.array(z.record(z.string(),z.any())).max(5000)}).safeParse(req.body);
   if(!p.success)return fail(res,400,"VALIDATION_ERROR","Invalid import payload.",p.error.issues);
@@ -809,7 +806,7 @@ app.post("/api/imports/preview",auth,roles("owner","admin","manager","inventory"
   d.rows.forEach(function(row,index){const name=String(row.name||row.Name||"").trim();if(!name)errors.push({row:index+1,field:"name",message:"Name is required."});else valid.push({row:index+1,data:row});});
   return ok(res,{entity_type:d.entity_type,total_rows:d.rows.length,valid_rows:valid.length,invalid_rows:errors.length,errors:errors.slice(0,200),preview:valid.slice(0,20)});
 });
-app.post("/api/imports/commit",auth,roles("owner","admin","manager","inventory"),async function(req,res){
+app.post("/api/imports/commit",auth,roles("owner","admin","manager"),async function(req,res){
   if(!requireDb(res))return;
   const p=z.object({entity_type:z.enum(["products","customers","suppliers"]),source_filename:z.string().max(255).optional(),rows:z.array(z.record(z.string(),z.any())).max(5000)}).safeParse(req.body);
   if(!p.success)return fail(res,400,"VALIDATION_ERROR","Invalid import payload.",p.error.issues);
@@ -841,7 +838,7 @@ app.post("/api/imports/commit",auth,roles("owner","admin","manager","inventory")
     return ok(res,result,201);
   }catch(e){console.error(e);return fail(res,500,"IMPORT_FAILED","Import could not be completed.");}
 });
-app.get("/api/imports",auth,roles("owner","admin","manager","inventory"),async function(req,res){
+app.get("/api/imports",auth,roles("owner","admin","manager"),async function(req,res){
   if(!requireDb(res))return;
   const r=await pool.query("select * from import_jobs where organization_id=$1 order by created_at desc limit 100",[req.user.orgId]);
   return ok(res,{items:r.rows});
