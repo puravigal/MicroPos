@@ -530,13 +530,15 @@ app.get("/api/invoices",auth,async function(req,res){
 
 app.get("/api/invoices/:id",auth,async function(req,res){
   if(!requireDb(res))return;
+  const match="(i.id::text=$1 or i.invoice_number=$1)";
   const h=req.user.role==="owner"
-    ? await pool.query("select i.*,c.name customer_name,c.phone customer_phone from invoices i left join customers c on c.id=i.customer_id where i.id=$1 and i.organization_id=$2",[req.params.id,req.user.orgId])
-    : await pool.query("select i.*,c.name customer_name,c.phone customer_phone from invoices i left join customers c on c.id=i.customer_id where i.id=$1 and i.organization_id=$2 and i.created_by=$3",[req.params.id,req.user.orgId,req.user.sub]);
+    ? await pool.query("select i.*,c.name customer_name,c.phone customer_phone from invoices i left join customers c on c.id=i.customer_id where "+match+" and i.organization_id=$2",[req.params.id,req.user.orgId])
+    : await pool.query("select i.*,c.name customer_name,c.phone customer_phone from invoices i left join customers c on c.id=i.customer_id where "+match+" and i.organization_id=$2 and i.created_by=$3",[req.params.id,req.user.orgId,req.user.sub]);
   if(!h.rowCount)return fail(res,404,"NOT_FOUND","Invoice not found.");
-  const items=await pool.query("select * from invoice_items where invoice_id=$1 order by id",[req.params.id]);
-  const payments=await pool.query("select * from payments where invoice_id=$1 order by created_at",[req.params.id]);
-  return ok(res,{invoice:h.rows[0],items:items.rows,payments:payments.rows});
+  const invoice=h.rows[0];
+  const items=await pool.query("select ii.*,p.name product_name,p.sku,p.barcode,coalesce((select sum(ri.quantity) from return_items ri join returns r on r.id=ri.return_id where ri.invoice_item_id=ii.id and r.status='completed'),0) returned_quantity from invoice_items ii left join products p on p.id=ii.product_id where ii.invoice_id=$1 order by ii.id",[invoice.id]);
+  const payments=await pool.query("select * from payments where invoice_id=$1 order by created_at",[invoice.id]);
+  return ok(res,{invoice:invoice,items:items.rows,payments:payments.rows});
 });
 
 app.post("/api/purchases",auth,roles("manager","inventory"),async function(req,res){
