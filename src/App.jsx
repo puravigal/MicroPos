@@ -216,6 +216,20 @@ function Settings({data,setData,settings,setSettings,apiMode,onLogout,currentUse
 
 function downloadCSV(rows,name){if(!rows.length)return;const keys=[...new Set(rows.flatMap(x=>Object.keys(x)))].filter(k=>typeof rows[0][k]!=="object");const csv=[keys.join(","),...rows.map(r=>keys.map(k=>JSON.stringify(r[k]??"")).join(","))].join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
+function parseCSVText(text){
+ const rows=[];let row=[],cell="",quoted=false;
+ for(let i=0;i<text.length;i++){const ch=text[i];if(ch==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(ch===","&&!quoted){row.push(cell);cell="";}else if((ch==="\\n"||ch==="\\r")&&!quoted){if(ch==="\\r"&&text[i+1]==="\\n")i++;row.push(cell);if(row.some(v=>v.trim()!==""))rows.push(row);row=[];cell="";}else cell+=ch;}
+ row.push(cell);if(row.some(v=>v.trim()!==""))rows.push(row);if(rows.length<2)return [];
+ const headers=rows[0].map(v=>v.trim().replace(/^\\uFEFF/,""));
+ return rows.slice(1).map(values=>Object.fromEntries(headers.map((h,i)=>[h,(values[i]||"").trim()])));
+}
+function CsvTools({rows=[],filename,onImport,importLabel="Import CSV",exportLabel="Export CSV"}){
+ const [busy,setBusy]=useState(false);
+ const [message,setMessage]=useState("");
+ const handleFile=async e=>{const file=e.target.files?.[0];if(!file)return;setBusy(true);setMessage("");try{const records=parseCSVText(await file.text());if(!records.length)throw new Error("CSV must include a header row and at least one data row.");const result=await onImport(records,file.name);setMessage(result||("Processed "+records.length+" CSV row(s)."));}catch(err){setMessage(err.message||"CSV import failed.");}finally{setBusy(false);e.target.value="";}};
+ return <div className="csv-tools">{onImport&&<label className={"secondary csv-import-label"+(busy?" is-busy":"")}>{busy?"Importing…":importLabel}<input type="file" accept=".csv,text/csv" disabled={busy} onChange={handleFile}/></label>}{rows&&<button type="button" className="secondary" onClick={()=>downloadCSV(rows,filename||"export.csv")}>{exportLabel}</button>}{message&&<small className="csv-tools-message" role="status">{message}</small>}</div>
+}
+
 export default function App(){
  const [authReady,setAuthReady]=useState(!isApiConfigured||Boolean(getAccessToken())),[user,setUser]=useState(null),[active,setActive]=useState("dashboard"),[data,setData]=useState(load()),[apiMode,setApiMode]=useState(isApiConfigured),[loading,setLoading]=useState(isApiConfigured),[settings,setSettings]=useState(data.settings),[accountOpen,setAccountOpen]=useState(false);
  useEffect(()=>save(data),[data]);
