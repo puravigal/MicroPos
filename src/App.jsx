@@ -18,17 +18,35 @@ function Empty({title="Nothing here yet",text="Add your first record to get star
 function Modal({title,onClose,children}){return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal" onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><h3>{title}</h3><button className="icon-button" onClick={onClose}>×</button></div>{children}</div></div>}
 function Stat({label,value,sub}){return <div className="stat-card"><span>{label}</span><strong>{value}</strong><small>{sub}</small></div>}
 
+function NavIcon({name}){
+ const common={width:18,height:18,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true};
+ const paths={
+ dashboard:<><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="4" rx="1.5"/><rect x="14" y="10" width="7" height="11" rx="1.5"/><rect x="3" y="13" width="7" height="8" rx="1.5"/></>,
+ billing:<><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></>,
+ products:<><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></>,
+ inventory:<><path d="m12 3 9 5v8l-9 5-9-5V8l9-5Z"/><path d="m3.5 8.2 8.5 4.9 8.5-4.9M12 13v8"/></>,
+ purchases:<><path d="M4 19 19 4M9 4h10v10"/></>,
+ customers:<><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M20 8v6M17 11h6"/></>,
+ suppliers:<><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V4h8v3M3 12h18M10 12v2h4v-2"/></>,
+ reports:<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
+ returns:<><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></>,
+ settings:<><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.6.9l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.6-.9l-1.7.7-1.4-2.4 1.4-1.1a7 7 0 0 1 0-1.9l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.6-.9l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.6.9l1.7-.7 1.4 2.4-1.4 1.1a7 7 0 0 1 0 1.9Z"/></>
+ };
+ return <svg {...common}>{paths[name]||paths.dashboard}</svg>;
+}
+
+
 const modules=[
- {id:"dashboard",label:"Dashboard",icon:"⌂"},
- {id:"billing",label:"Billing",icon:"₹"},
- {id:"products",label:"Products",icon:"▦"},
- {id:"inventory",label:"Inventory",icon:"◈"},
- {id:"purchases",label:"Purchases",icon:"↗"},
- {id:"customers",label:"Customers",icon:"◎"},
- {id:"suppliers",label:"Suppliers",icon:"◇"},
- {id:"reports",label:"Reports",icon:"▥"},
- {id:"returns",label:"Returns",icon:"↩"},
- {id:"settings",label:"Settings",icon:"⚙"}
+ {id:"dashboard",label:"Dashboard",icon:"dashboard"},
+ {id:"billing",label:"Billing",icon:"billing"},
+ {id:"products",label:"Products",icon:"products"},
+ {id:"inventory",label:"Inventory",icon:"inventory"},
+ {id:"purchases",label:"Purchases",icon:"purchases"},
+ {id:"customers",label:"Customers",icon:"customers"},
+ {id:"suppliers",label:"Suppliers",icon:"suppliers"},
+ {id:"reports",label:"Reports",icon:"reports"},
+ {id:"returns",label:"Returns",icon:"returns"},
+ {id:"settings",label:"Settings",icon:"settings"}
 ];
 
 const SIGNUP_COUNTRIES=[
@@ -161,7 +179,7 @@ function Settings({data,setData,settings,setSettings,apiMode,onLogout}){
 function downloadCSV(rows,name){if(!rows.length)return;const keys=[...new Set(rows.flatMap(x=>Object.keys(x)))].filter(k=>typeof rows[0][k]!=="object");const csv=[keys.join(","),...rows.map(r=>keys.map(k=>JSON.stringify(r[k]??"")).join(","))].join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 
 export default function App(){
- const [authReady,setAuthReady]=useState(!isApiConfigured||Boolean(getAccessToken())),[user,setUser]=useState(null),[active,setActive]=useState("dashboard"),[data,setData]=useState(load()),[apiMode,setApiMode]=useState(isApiConfigured),[loading,setLoading]=useState(isApiConfigured),[settings,setSettings]=useState(data.settings);
+ const [authReady,setAuthReady]=useState(!isApiConfigured||Boolean(getAccessToken())),[user,setUser]=useState(null),[active,setActive]=useState("dashboard"),[data,setData]=useState(load()),[apiMode,setApiMode]=useState(isApiConfigured),[loading,setLoading]=useState(isApiConfigured),[settings,setSettings]=useState(data.settings),[accountOpen,setAccountOpen]=useState(false);
  useEffect(()=>save(data),[data]);
  useEffect(()=>{if(!isApiConfigured||!user)return; (async()=>{try{const [p,c,sup,inv,pur,st]=await Promise.all([api.products(),api.customers(),api.suppliers(),api.invoices(),api.purchaseList(),api.settings()]);setData(d=>({...d,products:p.items,customers:c.items,suppliers:sup.items,sales:inv.items,purchases:pur.items,settings:{...d.settings,...st.organization,...st.business}}));setSettings(x=>({...x,...st.organization,...st.business}));}catch(e){console.warn(e.message)}})();},[user]);
  useEffect(()=>{if(!isApiConfigured){setLoading(false);return;} (async()=>{try{const me=await api.me();setUser(me);const [p,c,s,inv,pur,st]=await Promise.all([api.products(),api.customers(),api.suppliers(),api.invoices(),api.purchaseList(),api.settings()]);setData(d=>({...d,products:p.items,customers:c.items,suppliers:s.items,sales:inv.items,purchases:pur.items,settings:{...d.settings,...st.organization,...st.business}}));setSettings(s=>({...s,...st.organization,...st.business}));setAuthReady(true);}catch(e){clearSession();setAuthReady(false);}finally{setLoading(false)}})();},[]);
@@ -169,7 +187,7 @@ export default function App(){
  if(!authReady)return <Auth onLogin={r=>{setUser(r.user);setAuthReady(true);}}/>;
  const currentUser=user||data.user||seed.user;
  const logout=async()=>{try{if(apiMode)await api.logout({refresh_token:localStorage.getItem("puravi_refresh")});}catch{}clearSession();setUser(null);if(apiMode)setAuthReady(false);};
- const go=id=>setActive(id);
+ const go=id=>{setActive(id);setAccountOpen(false);};
  const content=active==="dashboard"?<Dashboard data={data} settings={settings} onGo={go}/>:active==="billing"?<Billing data={data} setData={setData} settings={settings} apiMode={apiMode}/>:active==="products"?<Products data={data} setData={setData} settings={settings} apiMode={apiMode}/>:active==="inventory"?<Inventory data={data} setData={setData} settings={settings} apiMode={apiMode}/>:active==="purchases"?<Purchases data={data} setData={setData} settings={settings} apiMode={apiMode}/>:active==="customers"?<People kind="Customers" data={data} setData={setData} apiMode={apiMode}/>:active==="suppliers"?<People kind="Suppliers" data={data} setData={setData} apiMode={apiMode}/>:active==="reports"?<Reports data={data} settings={settings}/>:active==="returns"?<Returns data={data} setData={setData} settings={settings} apiMode={apiMode}/>:<Settings data={data} setData={setData} settings={settings} setSettings={setSettings} apiMode={apiMode} onLogout={logout}/>;
- return <div className="app"><header className="topbar"><div className="brand" onClick={()=>go("dashboard")}><div className="logo">P</div><div><strong>Puravigal POS</strong><span>Micro POS · Professional quality</span></div></div><div className="top-actions"><span className="mode-pill">{apiMode?"● Cloud":"● Demo"}</span><div className="user-chip"><b>{currentUser.display_name||"Owner"}</b><small>{currentUser.role||"owner"}</small></div></div></header><main><div className="mobile-head"><p className="eyebrow">PURAVIGAL POS</p><h1>{modules.find(x=>x.id===active)?.label}</h1></div><section className="workspace-shell"><aside className="sidebar"><div className="side-title">Workspace</div>{modules.map(m=><button key={m.id} className={active===m.id?"side-item selected":"side-item"} onClick={()=>go(m.id)}><span>{m.icon}</span>{m.label}</button>)}</aside><div className="content">{content}</div></section></main><nav className="bottom-nav">{modules.slice(0,5).map(m=><button key={m.id} className={active===m.id?"selected":""} onClick={()=>go(m.id)}><span>{m.icon}</span><small>{m.label}</small></button>)}</nav></div>
+ return <div className="app"><header className="topbar"><div className="brand" onClick={()=>go("dashboard")}><div className="logo">P</div><div><strong>Puravigal POS</strong><span>Micro POS · Professional quality</span></div></div><div className="top-actions"><span className="mode-pill">{apiMode?"● Cloud":"● Demo"}</span><div className="account-area"><button className={"user-chip"+(accountOpen?" account-open":"")} onClick={()=>setAccountOpen(v=>!v)} aria-expanded={accountOpen}><span className="user-avatar">{String(currentUser.display_name||currentUser.email||"O").trim().charAt(0).toUpperCase()}</span><span className="user-identity"><b>{currentUser.display_name||"Owner"}</b><small>{currentUser.role||"owner"}</small></span><span className="account-chevron">⌄</span></button>{accountOpen&&<><button className="account-dismiss" aria-label="Close account menu" onClick={()=>setAccountOpen(false)}></button><div className="account-menu"><div className="account-menu-profile"><strong>{currentUser.display_name||"Owner"}</strong><small>{currentUser.email||""}</small></div><button onClick={()=>go("settings")}><NavIcon name="settings"/>Account & business settings</button><button className="account-signout" onClick={logout}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></svg>Sign out</button></div></>}</div></div></header><main><div className="mobile-head"><p className="eyebrow">PURAVIGAL POS</p><h1>{modules.find(x=>x.id===active)?.label}</h1></div><section className="workspace-shell"><aside className="sidebar"><div className="side-title">Workspace</div>{modules.map(m=><button key={m.id} className={active===m.id?"side-item selected":"side-item"} onClick={()=>go(m.id)}><span className="side-icon"><NavIcon name={m.icon}/></span>{m.label}</button>)}</aside><div className="content">{content}</div></section></main><nav className="bottom-nav">{modules.slice(0,5).map(m=><button key={m.id} className={active===m.id?"selected":""} onClick={()=>go(m.id)}><span className="side-icon"><NavIcon name={m.icon}/></span><small>{m.label}</small></button>)}</nav></div>
 }
