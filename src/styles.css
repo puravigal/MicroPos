@@ -357,3 +357,35 @@ th{background:#f8faff}
   .card .recent-sale-button>b{grid-column:1;grid-row:2;font-size:14px}
   .card .recent-sale-open{grid-column:2;grid-row:1 / span 2;align-self:center;font-size:11px}
 }
+
+/* Settings and GST registration controls */
+.settings-sections>.card{padding:26px;border-radius:20px}
+.settings-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:22px}
+.settings-card-heading h3{margin:5px 0 4px;font-size:19px;letter-spacing:-.03em}
+.settings-card-heading p{margin:0;color:var(--muted);font-size:12px;line-height:1.6}
+.settings-kicker{font-size:9px;letter-spacing:.15em;font-weight:900;color:#4163e9}
+.settings-heading-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:linear-gradient(135deg,#edf1ff,#fff0f8);color:#6548dc;font-size:22px}
+.gst-control-card{margin:8px 0 18px;border:1px solid #e1e6f0;border-radius:16px;background:linear-gradient(135deg,#fbfcff,#f8f9ff);overflow:hidden;transition:border-color .2s,box-shadow .2s}
+.gst-control-card.is-enabled{border-color:#b8c7ff;background:linear-gradient(135deg,#f8faff,#fff8fc);box-shadow:0 8px 24px #4d62d90d}
+.gst-control-top{display:flex;align-items:center;gap:13px;padding:17px}
+.gst-icon{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:13px;background:#edf1ff;color:#3158df;font-size:20px;font-weight:900}
+.gst-control-copy{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.gst-control-copy strong{font-size:14px;color:#19243c}
+.gst-control-copy span{font-size:11px;color:#77829a;line-height:1.45}
+.switch-control{width:48px;height:28px;flex:0 0 48px;padding:3px;border:0;border-radius:99px;background:#cbd2df;cursor:pointer;transition:background .2s;display:flex;align-items:center}
+.switch-control span{display:block;width:22px;height:22px;background:#fff;border-radius:50%;box-shadow:0 1px 4px #18223a30;transition:transform .2s}
+.switch-control.on{background:linear-gradient(110deg,#3158ed,#e50b85)}
+.switch-control.on span{transform:translateX(20px)}
+.switch-control:focus-visible{outline:3px solid #8098ff66;outline-offset:3px}
+.gst-registration-fields{padding:0 17px 17px;border-top:1px solid #e7eaff}
+.gst-enabled-label{display:flex;align-items:center;gap:7px;margin:15px 0 12px;font-size:11px;font-weight:800;color:#255b45}
+.gst-enabled-label small{font-size:10px;font-weight:500;color:#77829a;margin-left:auto}
+.gst-status-dot{width:7px;height:7px;border-radius:50%;background:#16a36a}
+.gst-registration-fields .field{max-width:100%}
+.gst-registration-fields .field input{border-color:#d8def2;min-height:44px}
+.gst-helper{margin:9px 0 0;color:#7b8499;font-size:10px;line-height:1.6}
+.settings-bottom-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:4px}
+.settings-bottom-row .check-row{margin:0}
+.settings-bottom-row .primary{min-width:145px}
+@media(max-width:1100px){.settings-sections{grid-template-columns:1fr}.settings-sections>.card{padding:22px}}
+@media(max-width:600px){.settings-sections>.card{padding:17px}.settings-card-heading h3{font-size:17px}.gst-control-top{padding:13px;gap:10px}.gst-icon{width:38px;height:38px;flex-basis:38px}.gst-registration-fields{padding:0 13px 14px}.settings-bottom-row{align-items:stretch;flex-direction:column}.settings-bottom-row .primary{width:100%}.gst-enabled-label{flex-wrap:wrap}.gst-enabled-label small{margin-left:0;width:100%;padding-left:14px}}
