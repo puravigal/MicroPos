@@ -496,7 +496,7 @@ app.post("/api/sales",auth,roles("cashier","manager"),async function(req,res){
         if(!c.rowCount)throw Object.assign(new Error("Customer not found"),{code:"CUSTOMER_NOT_FOUND"});
         customer=c.rows[0];
       }
-      let subtotal=0,discount=d.discount_total,taxTotal=0;
+      let subtotal=0,discount=0,taxTotal=0;
       const lines=[];
       for(const item of d.items){
         const pr=await client.query("select p.*,coalesce(tp.rate,0) tax_rate,coalesce(tp.components,'[]'::jsonb) tax_components from products p left join tax_profiles tp on tp.id=p.tax_profile_id where p.id=$1 and p.organization_id=$2 and p.is_active=true",[item.product_id,req.user.orgId]);
@@ -513,10 +513,20 @@ app.post("/api/sales",auth,roles("cashier","manager"),async function(req,res){
         const lineDiscount=Math.min(Number(item.discount_amount),lineGross);
         const taxable=Math.max(0,lineGross-lineDiscount);
         const effectiveTaxRate=org.gst_enabled?Number(product.tax_rate):0;
-        const lineTax=taxable*effectiveTaxRate/100;
-        const lineTotal=taxable+lineTax;
-        subtotal+=lineGross; taxTotal+=lineTax; discount+=lineDiscount;
-        lines.push({product:product,quantity:Number(item.quantity),unitPrice:unitPrice,discount:lineDiscount,taxable:taxable,taxRate:effectiveTaxRate,tax:lineTax,total:lineTotal,stock:stock});
+        subtotal+=lineGross; discount+=lineDiscount;
+        lines.push({product:product,quantity:Number(item.quantity),unitPrice:unitPrice,discount:lineDiscount,baseTaxable:taxable,taxable:taxable,taxRate:effectiveTaxRate,tax:0,total:taxable,stock:stock});
+      }
+      const discountableTotal=lines.reduce(function(sum,line){return sum+line.baseTaxable;},0);
+      const globalDiscount=Math.min(Number(d.discount_total),discountableTotal);
+      discount+=globalDiscount;
+      for(const line of lines){
+        const allocatedDiscount=discountableTotal>0?globalDiscount*(line.baseTaxable/discountableTotal):0;
+        line.discount+=allocatedDiscount;
+        line.taxable=Math.max(0,line.baseTaxable-allocatedDiscount);
+        line.tax=line.taxable*line.taxRate/100;
+        line.total=line.taxable+line.tax;
+        taxTotal+=line.tax;
+        delete line.baseTaxable;
       }
       const grand=Math.max(0,subtotal-discount+taxTotal);
       const paid=Math.min(Number(d.payment_amount === undefined ? grand : d.payment_amount),grand);
@@ -524,7 +534,7 @@ app.post("/api/sales",auth,roles("cashier","manager"),async function(req,res){
       const invoiceNumber=await nextNumber(client,req.user.orgId,storeId,null,"invoice");
       const invoice=(await client.query(
         "insert into invoices(organization_id,store_id,customer_id,invoice_number,status,invoice_type,currency_code,subtotal,discount_total,taxable_total,tax_total,grand_total,paid_total,tax_snapshot,buyer_snapshot,seller_snapshot,created_by,idempotency_key) values($1,$2,$3,$4,$5,'tax_invoice',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) returning *",
-        [req.user.orgId,storeId,customer ? customer.id:null,invoiceNumber,status,d.currency_code,subtotal,discount,Math.max(0,subtotal-discount),taxTotal,grand,paid,JSON.stringify({country:org.country_code}),JSON.stringify(customer || {}),JSON.stringify({name:org.name,country_code:org.country_code,currency_code:org.currency_code}),req.user.sub,d.idempotency_key || null]
+        [req.user.orgId,storeId,customer ? customer.id:null,invoiceNumber,status,d.currency_code,subtotal,discount,Math.max(0,subtotal-discount),taxTotal,grand,paid,JSON.stringify({country:org.country_code,gst_enabled:Boolean(org.gst_enabled),tax_registration_number:org.tax_registration_number||null}),JSON.stringify(customer || {}),JSON.stringify({name:org.name,country_code:org.country_code,currency_code:org.currency_code,gst_enabled:Boolean(org.gst_enabled),tax_registration_number:org.tax_registration_number||null}),req.user.sub,d.idempotency_key || null]
       )).rows[0];
       for(const line of lines){
         const ii=(await client.query("insert into invoice_items(invoice_id,product_id,description,quantity,unit_price,discount_amount,taxable_amount,tax_rate,tax_amount,line_total) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning id",[invoice.id,line.product.id,line.product.name,line.quantity,line.unitPrice,line.discount,line.taxable,line.taxRate,line.tax,line.total])).rows[0];
