@@ -90,9 +90,15 @@ function auth(req,res,next){
 function roles(){
   const allowed = Array.prototype.slice.call(arguments);
   return function(req,res,next){
-    if(allowed.includes(req.user.role) || req.user.role === "owner" || req.user.role === "admin") return next();
+    if(req.user.role === "owner" || allowed.includes(req.user.role)) return next();
     return fail(res,403,"FORBIDDEN","You do not have permission for this action.");
   };
+}
+let inviteTableReady;
+function ensureInviteTable(){
+  if(!pool) return Promise.reject(Object.assign(new Error("Database not configured"),{code:"DATABASE_NOT_CONFIGURED"}));
+  if(!inviteTableReady) inviteTableReady=pool.query("create table if not exists organization_invites (organization_id uuid primary key references organizations(id) on delete cascade, invite_code text not null unique, created_at timestamptz not null default now())").catch(function(e){inviteTableReady=null;throw e;});
+  return inviteTableReady;
 }
 async function audit(client,req,action,entityType,entityId,beforeData,afterData){
   await client.query(
@@ -131,7 +137,9 @@ const signupSchema=z.object({
   country_code:z.string().regex(/^[A-Za-z]{2}$/).default("IN").transform(function(x){return x.toUpperCase();}),
   currency_code:z.string().regex(/^[A-Za-z]{3}$/).default("INR").transform(function(x){return x.toUpperCase();}),
   timezone:z.string().min(1).max(80).default("Asia/Kolkata"),
-  locale:z.string().min(2).max(20).default("en-IN")
+  locale:z.string().min(2).max(20).default("en-IN"),
+  account_type:z.enum(["super_admin","user"]).default("super_admin"),
+  invite_code:z.string().trim().max(80).optional()
 });
 const productSchema=z.object({
   name:z.string().trim().min(1).max(200),
@@ -206,22 +214,32 @@ app.post("/api/auth/signup",authLimiter,async function(req,res){
   if(!p.success) return fail(res,400,"VALIDATION_ERROR","Please check the signup details.",p.error.issues);
   const d=p.data;
   try{
+    if(d.account_type==="user") await ensureInviteTable();
     const result=await runTx(async function(client){
       const exists=await client.query("select 1 from users where lower(email)=lower($1)",[d.email]);
       if(exists.rowCount) throw Object.assign(new Error("Email exists"),{code:"EMAIL_EXISTS"});
       const hash=await bcrypt.hash(d.password,12);
       const user=(await client.query("insert into users(email,password_hash,display_name,phone,is_verified) values(lower($1),$2,$3,$4,true) returning id,email,display_name,phone",[d.email,hash,d.display_name,d.phone])).rows[0];
+      if(d.account_type==="user"){
+        const invite=await client.query("select organization_id from organization_invites where upper(invite_code)=upper($1)",[d.invite_code||""]);
+        if(!invite.rowCount) throw Object.assign(new Error("Invalid business invite code"),{code:"INVALID_INVITE"});
+        const org=(await client.query("select id,name,country_code,currency_code,timezone,locale from organizations where id=$1",[invite.rows[0].organization_id])).rows[0];
+        await client.query("insert into organization_users(organization_id,user_id,role) values($1,$2,'cashier')",[org.id,user.id]);
+        const session=await issueSession(client,user,org.id,"cashier");
+        return {user:user,organization:org,organization_id:org.id,role:"cashier",session:session};
+      }
       const org=(await client.query("insert into organizations(name,country_code,currency_code,timezone,locale) values($1,$2,$3,$4,$5) returning id,name,country_code,currency_code,timezone,locale",[d.business_name,d.country_code,d.currency_code,d.timezone,d.locale])).rows[0];
       await client.query("insert into organization_users(organization_id,user_id,role) values($1,$2,'owner')",[org.id,user.id]);
       await client.query("insert into stores(organization_id,name,code) values($1,$2,'MAIN')",[org.id,d.business_name]);
       await client.query("insert into business_settings(organization_id) values($1)",[org.id]);
       await client.query("insert into tax_profiles(organization_id,name,country_code,rate,components,is_zero_rated,is_exempt) values($1,$2,$3,$4,$5,false,false)",[org.id,d.country_code==="AE"?"UAE VAT 5%":"Standard Tax",d.country_code,d.country_code==="AE"?5:0,JSON.stringify(d.country_code==="AE"?[{code:"VAT",rate:5}]:[])]);
       const session=await issueSession(client,user,org.id,"owner");
-      return {user:user,organization:org,session:session};
+      return {user:user,organization:org,organization_id:org.id,role:"owner",session:session};
     });
     return ok(res,result,201);
   }catch(e){
     if(e.code==="EMAIL_EXISTS") return fail(res,409,"EMAIL_EXISTS","An account with this email already exists.");
+    if(e.code==="INVALID_INVITE") return fail(res,400,"INVALID_INVITE","That business invite code is invalid. Ask your Super Admin for the current code.");
     console.error(e); return fail(res,500,"SIGNUP_FAILED","Unable to create the account.");
   }
 });
@@ -284,11 +302,11 @@ app.post("/api/auth/login",authLimiter,async function(req,res){
   const p=z.object({email:z.string().email(),password:z.string().min(1)}).safeParse(req.body);
   if(!p.success) return fail(res,400,"VALIDATION_ERROR","Email and password are required.");
   try{
-    const q=await pool.query("select u.id,u.email,u.display_name,u.password_hash,ou.organization_id,ou.role from users u join organization_users ou on ou.user_id=u.id where lower(u.email)=lower($1) and u.is_active=true order by ou.created_at limit 1",[p.data.email]);
+    const q=await pool.query("select u.id,u.email,u.display_name,u.password_hash,ou.organization_id,ou.role,o.name organization_name,o.country_code,o.currency_code,o.timezone,o.locale from users u join organization_users ou on ou.user_id=u.id join organizations o on o.id=ou.organization_id where lower(u.email)=lower($1) and u.is_active=true order by case when ou.role='owner' then 0 else 1 end,ou.created_at limit 1",[p.data.email]);
     if(!q.rowCount || !q.rows[0].password_hash || !(await bcrypt.compare(p.data.password,q.rows[0].password_hash))) return fail(res,401,"INVALID_CREDENTIALS","Email or password is incorrect.");
     const x=q.rows[0], user={id:x.id,email:x.email,display_name:x.display_name};
     const session=await runTx(function(client){return issueSession(client,user,x.organization_id,x.role);});
-    return ok(res,{user:user,organization_id:x.organization_id,role:x.role,session:session});
+    return ok(res,{user:user,organization_id:x.organization_id,organization:{name:x.organization_name,country_code:x.country_code,currency_code:x.currency_code,timezone:x.timezone,locale:x.locale},role:x.role,session:session});
   }catch(e){console.error(e);return fail(res,500,"LOGIN_FAILED","Unable to sign in.");}
 });
 
