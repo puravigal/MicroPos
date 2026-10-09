@@ -349,7 +349,15 @@ async function createEntity(req,res,table,fields,schema,allowedRoles){
   const p=schema.safeParse(req.body);
   if(!p.success) return fail(res,400,"VALIDATION_ERROR","Invalid data.",p.error.issues);
   if(allowedRoles && allowedRoles.length && !allowedRoles.includes(req.user.role) && !["owner","admin"].includes(req.user.role)) return fail(res,403,"FORBIDDEN","You do not have permission for this action.");
-  const d=p.data, cols=Object.keys(d).filter(function(k){return fields.includes(k) && d[k] !== undefined;});
+  const d=p.data;
+  if(table==="customers" && typeof d.email==="string"){
+    d.email=d.email.trim().toLowerCase()||null;
+    if(d.email){
+      const duplicate=await pool.query("select id from customers where organization_id=$1 and lower(trim(email))=$2 limit 1",[req.user.orgId,d.email]);
+      if(duplicate.rowCount) return fail(res,409,"CUSTOMER_EMAIL_EXISTS","A customer with this email already exists in your business.");
+    }
+  }
+  const cols=Object.keys(d).filter(function(k){return fields.includes(k) && d[k] !== undefined;});
   const vals=cols.map(function(k){return d[k]});
   try{
     const q=await pool.query("insert into "+table+"(organization_id,"+cols.join(",")+") values($1,"+cols.map(function(_,i){return "$"+(i+2)}).join(",")+") returning *",[req.user.orgId].concat(vals));
