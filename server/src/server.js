@@ -385,7 +385,7 @@ async function createEntity(req,res,table,fields,schema,allowedRoles){
 }
 app.post("/api/products",auth,function(req,res){return createEntity(req,res,"products",["name","sku","barcode","description","selling_price","purchase_price","min_stock","tax_profile_id","category_id","hsn_sac","currency_code"],productSchema,["manager","inventory"]);});
 app.post("/api/customers",auth,function(req,res){return createEntity(req,res,"customers",["name","phone","email","tax_id","notes"],personSchema,null);});
-app.post("/api/suppliers",auth,function(req,res){return createEntity(req,res,"suppliers",["name","phone","email","tax_id","notes"],personSchema,["manager","inventory"]);});
+app.post("/api/suppliers",auth,roles("owner"),function(req,res){return createEntity(req,res,"suppliers",["name","phone","email","tax_id","notes"],personSchema,["manager","inventory"]);});
 
 app.get("/api/products",auth,async function(req,res){
   if(!requireDb(res)) return;
@@ -399,7 +399,7 @@ app.get("/api/customers",auth,async function(req,res){
   const r=await pool.query("select * from customers where organization_id=$1 and ($2='' or name ilike '%'||$2||'%' or coalesce(phone,'') ilike '%'||$2||'%') order by name limit 500",[req.user.orgId,q]);
   return ok(res,{items:r.rows});
 });
-app.get("/api/suppliers",auth,async function(req,res){
+app.get("/api/suppliers",auth,roles("owner"),async function(req,res){
   if(!requireDb(res)) return;
   const q=String(req.query.q || "");
   const r=await pool.query("select * from suppliers where organization_id=$1 and ($2='' or name ilike '%'||$2||'%' or coalesce(phone,'') ilike '%'||$2||'%') order by name limit 500",[req.user.orgId,q]);
@@ -513,13 +513,17 @@ function sbSafe(){ return true; }
 
 app.get("/api/invoices",auth,async function(req,res){
   if(!requireDb(res))return;
-  const r=await pool.query("select i.*,coalesce(c.name,'Walk-in customer') customer_name from invoices i left join customers c on c.id=i.customer_id where i.organization_id=$1 order by i.created_at desc limit 200",[req.user.orgId]);
+  const r=req.user.role==="owner"
+    ? await pool.query("select i.*,coalesce(c.name,'Walk-in customer') customer_name from invoices i left join customers c on c.id=i.customer_id where i.organization_id=$1 order by i.created_at desc limit 200",[req.user.orgId])
+    : await pool.query("select i.*,coalesce(c.name,'Walk-in customer') customer_name from invoices i left join customers c on c.id=i.customer_id where i.organization_id=$1 and i.created_by=$2 order by i.created_at desc limit 200",[req.user.orgId,req.user.sub]);
   return ok(res,{items:r.rows});
 });
 
 app.get("/api/invoices/:id",auth,async function(req,res){
   if(!requireDb(res))return;
-  const h=await pool.query("select i.*,c.name customer_name,c.phone customer_phone from invoices i left join customers c on c.id=i.customer_id where i.id=$1 and i.organization_id=$2",[req.params.id,req.user.orgId]);
+  const h=req.user.role==="owner"
+    ? await pool.query("select i.*,c.name customer_name,c.phone customer_phone from invoices i left join customers c on c.id=i.customer_id where i.id=$1 and i.organization_id=$2",[req.params.id,req.user.orgId])
+    : await pool.query("select i.*,c.name customer_name,c.phone customer_phone from invoices i left join customers c on c.id=i.customer_id where i.id=$1 and i.organization_id=$2 and i.created_by=$3",[req.params.id,req.user.orgId,req.user.sub]);
   if(!h.rowCount)return fail(res,404,"NOT_FOUND","Invoice not found.");
   const items=await pool.query("select * from invoice_items where invoice_id=$1 order by id",[req.params.id]);
   const payments=await pool.query("select * from payments where invoice_id=$1 order by created_at",[req.params.id]);
@@ -556,7 +560,7 @@ app.post("/api/purchases",auth,roles("manager","inventory"),async function(req,r
   }catch(e){if(e.code==="PRODUCT_NOT_FOUND")return fail(res,404,e.code,e.message);console.error(e);return fail(res,500,"PURCHASE_FAILED","Unable to receive purchase.");}
 });
 
-app.get("/api/purchases",auth,async function(req,res){
+app.get("/api/purchases",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   const r=await pool.query("select p.*,coalesce(s.name,'Unknown supplier') supplier_name from suppliers_purchases p left join suppliers s on s.id=p.supplier_id where p.organization_id=$1 order by p.created_at desc limit 200",[req.user.orgId]);
   return ok(res,{items:r.rows});
@@ -627,13 +631,13 @@ app.post("/api/inventory/adjust",auth,roles("manager","inventory"),async functio
   }catch(e){if(e.code==="NEGATIVE_STOCK")return fail(res,409,e.code,"Stock cannot become negative.",{available:e.available});if(e.code==="PRODUCT_NOT_FOUND")return fail(res,404,e.code,e.message);console.error(e);return fail(res,500,"ADJUSTMENT_FAILED","Unable to adjust stock.");}
 });
 
-app.get("/api/inventory/movements",auth,async function(req,res){
+app.get("/api/inventory/movements",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   const r=await pool.query("select sm.*,p.name product_name from stock_movements sm join products p on p.id=sm.product_id where sm.organization_id=$1 order by sm.created_at desc limit 500",[req.user.orgId]);
   return ok(res,{items:r.rows});
 });
 
-app.get("/api/reports/summary",auth,async function(req,res){
+app.get("/api/reports/summary",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   const range=String(req.query.range || "month");
   const days=range==="today"?1:range==="week"?7:range==="year"?365:30;
@@ -644,7 +648,7 @@ app.get("/api/reports/summary",auth,async function(req,res){
   return ok(res,{range:range,sales:sales.rows[0],payments:payments.rows,top_products:top.rows,stock:low.rows});
 });
 
-app.get("/api/dashboard",auth,async function(req,res){
+app.get("/api/dashboard",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   const [sales,bills,low,outstanding]=await Promise.all([
     pool.query("select coalesce(sum(grand_total),0) total from invoices where organization_id=$1 and status<>'cancelled' and created_at::date=current_date",[req.user.orgId]),
@@ -655,7 +659,7 @@ app.get("/api/dashboard",auth,async function(req,res){
   return ok(res,{sales:sales.rows[0].total,bills:bills.rows[0].count,lowStock:low.rows[0].count,outstanding:outstanding.rows[0].total});
 });
 
-app.get("/api/settings",auth,async function(req,res){
+app.get("/api/settings",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   const [o,b]=await Promise.all([
     pool.query("select id,name,legal_name,country_code,currency_code,timezone,locale,tax_registration_number,tax_registration_type,address from organizations where id=$1",[req.user.orgId]),
@@ -663,7 +667,7 @@ app.get("/api/settings",auth,async function(req,res){
   ]);
   return ok(res,{organization:o.rows[0],business:b.rows[0]});
 });
-app.patch("/api/settings",auth,roles("owner","admin"),async function(req,res){
+app.patch("/api/settings",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   const p=z.object({
     name:z.string().trim().min(1).max(200).optional(),
@@ -698,14 +702,32 @@ app.patch("/api/settings",auth,roles("owner","admin"),async function(req,res){
 });
 
 
-app.get("/api/users",auth,roles("owner","admin"),async function(req,res){
+app.get("/api/users/invite-code",auth,roles("owner"),async function(req,res){
+  if(!requireDb(res))return;
+  try{
+    await ensureInviteTable();
+    const q=await pool.query("select invite_code,created_at from organization_invites where organization_id=$1",[req.user.orgId]);
+    return ok(res,{invite_code:q.rows[0]?.invite_code||null,created_at:q.rows[0]?.created_at||null});
+  }catch(e){console.error(e);return fail(res,500,"INVITE_CODE_FAILED","Unable to load the business invite code.");}
+});
+app.post("/api/users/invite-code",auth,roles("owner"),async function(req,res){
+  if(!requireDb(res))return;
+  try{
+    await ensureInviteTable();
+    const code=crypto.randomBytes(6).toString("hex").toUpperCase();
+    const q=await pool.query("insert into organization_invites(organization_id,invite_code) values($1,$2) on conflict(organization_id) do update set invite_code=excluded.invite_code,created_at=now() returning invite_code,created_at",[req.user.orgId,code]);
+    await audit(pool,req,"rotate","organization_invite",req.user.orgId,null,{invite_code:code});
+    return ok(res,q.rows[0],201);
+  }catch(e){console.error(e);return fail(res,500,"INVITE_CODE_FAILED","Unable to generate a business invite code.");}
+});
+app.get("/api/users",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   const r=await pool.query("select u.id,u.email,u.display_name,u.phone,u.is_verified,u.is_active,ou.role,ou.created_at from users u join organization_users ou on ou.user_id=u.id where ou.organization_id=$1 order by ou.created_at",[req.user.orgId]);
   return ok(res,{items:r.rows});
 });
-app.patch("/api/users/:id/role",auth,roles("owner","admin"),async function(req,res){
+app.patch("/api/users/:id/role",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
-  const p=z.object({role:z.enum(["owner","admin","manager","cashier","inventory"])}).safeParse(req.body);
+  const p=z.object({role:z.enum(["owner","cashier"])}).safeParse(req.body);
   if(!p.success)return fail(res,400,"VALIDATION_ERROR","Invalid role.");
   if(req.params.id===req.user.sub && p.data.role!=="owner")return fail(res,400,"SELF_DEMOTION_BLOCKED","You cannot remove your own owner access.");
   try{
@@ -762,7 +784,7 @@ app.get("/api/imports",auth,roles("owner","admin","manager","inventory"),async f
   return ok(res,{items:r.rows});
 });
 
-app.get("/api/audit",auth,roles("owner","admin"),async function(req,res){
+app.get("/api/audit",auth,roles("owner"),async function(req,res){
   if(!requireDb(res))return;
   const r=await pool.query("select a.*,u.display_name from audit_logs a left join users u on u.id=a.user_id where a.organization_id=$1 order by a.created_at desc limit 300",[req.user.orgId]);
   return ok(res,{items:r.rows});
