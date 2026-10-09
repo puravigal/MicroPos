@@ -55,10 +55,10 @@ function Auth({onLogin}){
  const submit=async e=>{e.preventDefault();setError("");
    if(mode==="signup"){
      if(!form.display_name.trim()||!form.business_name.trim()||!form.phone.trim()||!form.email.trim()||!form.password){setError("Please complete all required fields.");return;}
-     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)){setError("Enter a valid email address.");return;}
+     const email=form.email.trim();if(!email || !email.includes("@") || email.indexOf("@")===0 || !email.slice(email.lastIndexOf("@")+1).includes(".") || email.endsWith(".")){setError("Enter a valid email address.");return;}
      if(form.password.length<8){setError("Password must contain at least 8 characters.");return;}
    }
-   setBusy(true);try{const r=mode==="login"?await api.login({email:form.email,password:form.password}):await api.signup(form);saveSession(r.session);onLogin(r);}
+   setBusy(true);try{const r=mode==="login"?await api.login({email:form.email.trim(),password:form.password}):await api.signup({...form,email:form.email.trim()});saveSession(r.session);onLogin(r);}
    catch(err){setError(err.message||"Unable to create account. Please try again.");}
    finally{setBusy(false);}
  };
