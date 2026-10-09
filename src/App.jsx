@@ -68,29 +68,51 @@ const SIGNUP_CURRENCIES=[
  {code:"ZAR",name:"South African Rand (ZAR)"},{code:"EUR",name:"Euro (EUR)"}
 ];
 function Auth({onLogin}){
- const [mode,setMode]=useState("login"),[form,setForm]=useState({email:"",password:"",display_name:"",business_name:"",phone:"",country_code:"IN",currency_code:"INR",timezone:"Asia/Kolkata",locale:"en-IN",account_type:"super_admin",invite_code:""}),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const [mode,setMode]=useState("login"),[form,setForm]=useState({email:"",password:"",confirmPassword:"",otp:"",display_name:"",business_name:"",phone:"",country_code:"IN",currency_code:"INR",timezone:"Asia/Kolkata",locale:"en-IN",account_type:"super_admin",invite_code:""}),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const changeCountry=code=>{const c=SIGNUP_COUNTRIES.find(x=>x.code===code)||SIGNUP_COUNTRIES[0];setForm(f=>({...f,country_code:c.code,currency_code:c.currency,timezone:c.timezone,locale:c.locale}));};
- const submit=async e=>{e.preventDefault();setError("");
+ const submit=async e=>{e.preventDefault();setError("");setNotice("");
+   if(!form.email.trim()||!form.email.includes("@")){setError("Enter a valid email address.");return;}
    if(mode==="signup"){
-     if(!form.display_name.trim()||!form.phone.trim()||!form.email.trim()||!form.password||(form.account_type==="super_admin"&&!form.business_name.trim())||(form.account_type==="user"&&!form.invite_code.trim())){setError("Please complete all required fields.");return;}
-     const email=form.email.trim();if(!email || !email.includes("@") || email.indexOf("@")===0 || !email.slice(email.lastIndexOf("@")+1).includes(".") || email.endsWith(".")){setError("Enter a valid email address.");return;}
+     if(!form.display_name.trim()||!form.phone.trim()||!form.password||(form.account_type==="super_admin"&&!form.business_name.trim())||(form.account_type==="user"&&!form.invite_code.trim())){setError("Please complete all required fields.");return;}
+     const email=form.email.trim();if(email.indexOf("@")===0||!email.slice(email.lastIndexOf("@")+1).includes(".")||email.endsWith(".")){setError("Enter a valid email address.");return;}
      if(form.password.length<8){setError("Password must contain at least 8 characters.");return;}
    }
-   setBusy(true);try{const r=mode==="login"?await api.login({email:form.email.trim(),password:form.password}):await api.signup({...form,email:form.email.trim()});saveSession(r.session);onLogin(r);}
-   catch(err){setError(err.message||"Unable to create account. Please try again.");}
+   if(mode==="reset"){
+     if(!/^\\d{6}$/.test(form.otp)){setError("Enter the 6-digit OTP from your email.");return;}
+     if(form.password.length<8){setError("New password must contain at least 8 characters.");return;}
+     if(form.password!==form.confirmPassword){setError("New password and confirmation do not match.");return;}
+   }
+   setBusy(true);
+   try{
+    if(mode==="forgot"){
+     const r=await api.requestPasswordReset(form.email.trim());setMode("reset");setNotice(r.message||"If an account exists, an OTP has been sent to that email.");return;
+    }
+    if(mode==="reset"){
+     const r=await api.verifyPasswordReset({email:form.email.trim(),otp:form.otp,new_password:form.password});setMode("login");setForm(f=>({...f,password:"",confirmPassword:"",otp:""}));setNotice(r.message||"Password reset successfully. Please sign in with your new password.");return;
+    }
+    const r=mode==="login"?await api.login({email:form.email.trim(),password:form.password}):await api.signup({...form,email:form.email.trim()});saveSession(r.session);onLogin(r);
+   }catch(err){setError(err.message||"Unable to complete the request. Please try again.");}
    finally{setBusy(false);}
  };
- return <div className="auth-page"><div className="auth-card"><div className="auth-brand"><div className="logo">P</div><div><strong>Puravigal POS</strong><small>Micro POS · Professional quality</small></div></div><div className="auth-copy"><p className="eyebrow">SECURE BUSINESS ACCESS</p><h1>{mode==="login"?"Welcome back":form.account_type==="user"?"Join your team":"Create your business"}</h1><p>Fast billing, inventory and business control from one workspace.</p></div>{error&&<div className="alert error" role="alert">{error}</div>}<form onSubmit={submit}>{mode==="signup"&&<>
+ const title=mode==="login"?"Welcome back":mode==="signup"?(form.account_type==="user"?"Join your team":"Create your business"):mode==="forgot"?"Forgot password?":"Reset your password";
+ return <div className="auth-page"><div className="auth-card"><div className="auth-brand"><div className="logo">P</div><div><strong>Puravigal POS</strong><small>Micro POS · Professional quality</small></div></div><div className="auth-copy"><p className="eyebrow">SECURE BUSINESS ACCESS</p><h1>{title}</h1><p>{mode==="forgot"?"Enter your registered email address and we’ll send a password reset OTP.":mode==="reset"?"Enter the 6-digit OTP and choose a new password.": "Fast billing, inventory and business control from one workspace."}</p></div>{error&&<div className="alert error" role="alert">{error}</div>}{notice&&<div className="alert" role="status">{notice}</div>}
+ <form onSubmit={submit}>
+ {mode==="signup"&&<>
  <Field label="Account type"><select className="auth-role-select" value={form.account_type} onChange={e=>setForm({...form,account_type:e.target.value})}><option value="super_admin">Super Admin · Create a business</option><option value="user">Normal User · Join a business</option></select></Field>
  <Field label="Your name" value={form.display_name} autoComplete="name" required onChange={e=>setForm({...form,display_name:e.target.value})}/>
  {form.account_type==="super_admin"&&<Field label="Business name" value={form.business_name} autoComplete="organization" required onChange={e=>setForm({...form,business_name:e.target.value})}/>}
  <Field label="Phone number" type="tel" value={form.phone} autoComplete="tel" placeholder="+91 98765 43210" required onChange={e=>setForm({...form,phone:e.target.value})}/>
- {form.account_type==="super_admin"&&<div className="form-grid two">
-  <Field label="Country" ><select value={form.country_code} onChange={e=>changeCountry(e.target.value)}>{SIGNUP_COUNTRIES.map(c=><option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}</select></Field>
-  <Field label="Business currency"><select value={form.currency_code} onChange={e=>setForm({...form,currency_code:e.target.value})}>{SIGNUP_CURRENCIES.map(c=><option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
- </div>}
+ {form.account_type==="super_admin"&&<div className="form-grid two"><Field label="Country"><select value={form.country_code} onChange={e=>changeCountry(e.target.value)}>{SIGNUP_COUNTRIES.map(c=><option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}</select></Field><Field label="Business currency"><select value={form.currency_code} onChange={e=>setForm({...form,currency_code:e.target.value})}>{SIGNUP_CURRENCIES.map(c=><option key={c.code} value={c.code}>{c.name}</option>)}</select></Field></div>}
  {form.account_type==="user"&&<Field label="Business invite code" value={form.invite_code} autoComplete="off" placeholder="Ask your Super Admin for the code" required onChange={e=>setForm({...form,invite_code:e.target.value.toUpperCase()})}/>}
- </>}<Field label="Email" type="email" autoComplete="email" value={form.email} required onChange={e=>setForm({...form,email:e.target.value})}/><Field label="Password (minimum 8 characters)" type="password" autoComplete={mode==="login"?"current-password":"new-password"} minLength={mode==="signup"?8:undefined} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/><button className="primary wide" disabled={busy}>{busy?"Please wait…":mode==="login"?"Sign in":"Create account"}</button></form><button className="link-button" onClick={()=>{setMode(mode==="login"?"signup":"login");setError("");}}>{mode==="login"?"Create an account":"Already have an account? Sign in"}</button><small className="auth-note">Production integrations can be enabled through your configured API and provider credentials.</small></div></div>
+ </>}
+ <Field label="Email" type="email" autoComplete="email" value={form.email} required onChange={e=>setForm({...form,email:e.target.value})}/>
+ {mode==="login"&&<Field label="Password" type="password" autoComplete="current-password" value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/>}
+ {mode==="signup"&&<Field label="Password (minimum 8 characters)" type="password" autoComplete="new-password" minLength={8} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/>}
+ {mode==="reset"&&<><Field label="6-digit OTP" inputMode="numeric" autoComplete="one-time-code" value={form.otp} required placeholder="Enter OTP from email" onChange={e=>setForm({...form,otp:e.target.value.replace(/\\D/g,"").slice(0,6)})}/><Field label="New password (minimum 8 characters)" type="password" autoComplete="new-password" minLength={8} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/><Field label="Confirm new password" type="password" autoComplete="new-password" minLength={8} value={form.confirmPassword} required onChange={e=>setForm({...form,confirmPassword:e.target.value})}/></>}
+ <button className="primary wide" disabled={busy}>{busy?"Please wait…":mode==="login"?"Sign in":mode==="signup"?"Create account":mode==="forgot"?"Send reset OTP":"Reset password"}</button>
+ </form>
+ <div className="auth-secondary-actions">{mode==="login"&&<button className="link-button" onClick={()=>{setMode("forgot");setError("");setNotice("");}}>Forgot password?</button>}{mode==="reset"&&<button className="link-button" disabled={busy} onClick={()=>{setMode("forgot");setError("");setNotice("Request a new OTP if the previous one expired.");setForm(f=>({...f,otp:"",password:"",confirmPassword:""}));}}>Resend OTP</button>}<button className="link-button" disabled={busy} onClick={()=>{setMode(mode==="signup"?"login":"signup");setError("");setNotice("");}}>{mode==="signup"?"Already have an account? Sign in":mode==="login"?"Create an account":"Back to sign in"}</button></div>
+ <small className="auth-note">Password reset requires access to your registered email address.</small></div></div>
 }
 function Dashboard({data,settings,onGo,apiMode}){
  const [selectedInvoice,setSelectedInvoice]=useState(null),[hoveredDay,setHoveredDay]=useState(null);
