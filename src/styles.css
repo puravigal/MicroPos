@@ -15,3 +15,64 @@ main{max-width:1500px;margin:auto}.mobile-head{display:none}.workspace-shell{pad
 @media(max-width:1100px){.form-grid{grid-template-columns:repeat(2,1fr)}.product-grid{grid-template-columns:repeat(2,1fr)}.dashboard-grid,.settings-sections{grid-template-columns:1fr}}
 @media(max-width:800px){.topbar{height:62px;padding:0 14px}.brand strong{font-size:14px}.brand span,.user-chip{display:none}.workspace-shell{padding:14px;display:block}.sidebar{display:none}.mobile-head{display:block;padding:18px 14px 0}.mobile-head h1{margin:0 0 3px;font-size:24px}.mobile-head p{margin:0}.stats-grid{grid-template-columns:repeat(2,1fr)}.bottom-nav{position:fixed;display:flex;bottom:0;left:0;right:0;height:68px;background:#fff;border-top:1px solid var(--line);justify-content:space-around;z-index:40}.bottom-nav button{border:0;background:none;color:#727c90;min-width:55px}.bottom-nav button.selected{color:var(--blue);font-weight:850}.bottom-nav span,.bottom-nav small{display:block}.bottom-nav span{font-size:18px}.bottom-nav small{font-size:9px;margin-top:2px}.page-head{align-items:stretch;flex-direction:column}.searchbox{min-width:0;width:100%}.pos-layout{grid-template-columns:1fr}.checkout{order:2}.toolbar{align-items:stretch;flex-direction:column}}
 @media(max-width:520px){.top-actions{display:none}.workspace-shell{padding:10px}.card{padding:14px;border-radius:13px}.page-head h2{font-size:22px}.stats-grid{gap:8px}.stat-card{padding:12px}.stat-card strong{font-size:18px}.form-grid,.form-grid.two,.form-grid.three{grid-template-columns:1fr}.product-grid{grid-template-columns:1fr 1fr}.product-tile{padding:10px}.cart-row{grid-template-columns:1fr auto}.cart-row>strong{grid-column:1/-1;text-align:right}.auth-card{padding:20px}.auth-copy h1{font-size:26px}}
+
+
+/* Dashboard chart and quick actions restored from the approved POS mock */
+.head-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.dashboard-primary-grid{grid-template-columns:minmax(0,1.55fr) minmax(280px,1fr);margin-bottom:16px}
+.sales-chart-card{min-height:310px}
+.chart-total{display:flex;align-items:baseline;gap:10px;margin:14px 0 2px}
+.chart-total strong{font-size:25px;letter-spacing:-.5px}
+.chart-total small{color:var(--muted);font-size:11px}
+.sales-chart svg{width:100%;height:auto;display:block;overflow:visible}
+.chart-axis{stroke:#dfe5ef;stroke-width:1}
+.chart-gridline{stroke:#edf0f6;stroke-width:1;stroke-dasharray:4 5}
+.chart-bar{fill:#b8c9ff}
+.chart-bar-today{fill:var(--blue)}
+.chart-label{fill:#818ba0;font-size:11px}
+.quick-bill-card{display:flex;flex-direction:column;gap:7px}
+.quick-bill-card>.section-title{margin-bottom:4px}
+.quick-action{width:100%;display:flex;align-items:center;gap:11px;text-align:left;padding:11px 9px;border:1px solid transparent;border-radius:12px;background:#fff}
+.quick-action:hover{background:#f8faff;border-color:#e5ebf7}
+.quick-action-icon{display:grid;place-items:center;flex:0 0 38px;height:38px;border-radius:11px;background:#edf2ff;color:var(--blue);font-size:19px;font-weight:800}
+.quick-action>span:nth-child(2){flex:1;min-width:0}
+.quick-action strong,.quick-action small{display:block}
+.quick-action strong{font-size:12px}
+.quick-action small{color:var(--muted);font-size:10px;margin-top:4px}
+.quick-action>b{color:#929cb0;font-size:18px}
+.invoice-modal{width:min(900px,100%);max-height:92vh;overflow:auto}
+.invoice-modal>.modal-head{margin-bottom:14px}
+.invoice-modal>.modal-head small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+.invoice-paper{width:min(100%,820px);margin:0 auto;background:#fff;border:1px solid #e7ebf2;padding:30px;color:#17213b}
+.invoice-brand{display:flex;align-items:center;gap:12px;padding-bottom:20px;border-bottom:1px solid #e8ecf3}
+.invoice-brand .logo{flex-shrink:0}
+.invoice-brand h2{font-size:20px;margin:0}
+.invoice-brand small{display:block;color:var(--muted);margin-top:4px}
+.invoice-tax-badge{margin-left:auto;border:1px solid #dce5ff;color:var(--blue);background:#f4f7ff;padding:7px 11px;border-radius:8px;font-size:10px;font-weight:850;letter-spacing:1px}
+.invoice-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:20px 0}
+.invoice-meta small,.invoice-meta strong,.invoice-customer small,.invoice-customer strong{display:block}
+.invoice-meta small,.invoice-customer small{font-size:10px;color:var(--muted);margin-bottom:5px}
+.invoice-meta strong,.invoice-customer strong{font-size:12px}
+.invoice-customer{background:#f7f9fc;border:1px solid #edf0f5;border-radius:10px;padding:12px;margin-bottom:18px}
+.invoice-table{width:100%;border-collapse:collapse;font-size:12px}
+.invoice-table th{text-align:left;background:#f7f9fc;color:#69748a;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.invoice-table th,.invoice-table td{padding:11px 9px;border-bottom:1px solid #edf0f5}
+.invoice-table .align-right,.align-right{text-align:right}
+.invoice-totals{width:min(320px,100%);margin:18px 0 0 auto}
+.invoice-totals>div{display:flex;justify-content:space-between;gap:16px;padding:6px 0;font-size:11px}
+.invoice-totals span{color:var(--muted)}
+.invoice-totals .invoice-grand-total{border-top:1px solid #dfe5ef;margin-top:5px;padding-top:12px;font-size:15px;color:#17213b}
+.invoice-totals .invoice-grand-total span{color:#17213b;font-weight:800}
+.invoice-thanks{text-align:center;color:var(--muted);font-size:11px;border-top:1px dashed #dfe5ef;padding-top:18px;margin:24px 0 0}
+.invoice-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:14px}
+@media(max-width:800px){.dashboard-primary-grid{grid-template-columns:1fr}.head-actions{width:100%}.head-actions button{flex:1}.invoice-paper{padding:18px}.invoice-brand h2{font-size:16px}}
+@media(max-width:520px){.invoice-paper{padding:12px}.invoice-meta{grid-template-columns:1fr}.invoice-table th,.invoice-table td{padding:8px 4px;font-size:10px}.invoice-brand h2{font-size:14px}.invoice-tax-badge{font-size:8px;padding:5px 7px}.invoice-totals{width:100%}}
+@media print{
+ @page{size:A4;margin:12mm}
+ body,html{background:#fff!important;min-width:0!important}
+ body *{visibility:hidden!important}
+ #invoice-paper,#invoice-paper *{visibility:visible!important}
+ #invoice-paper{position:absolute!important;left:0!important;top:0!important;width:100%!important;max-width:none!important;margin:0!important;padding:0!important;border:0!important;box-shadow:none!important}
+ .no-print,.modal-backdrop,.topbar,.sidebar,.bottom-nav{display:none!important}
+ .invoice-table tr{break-inside:avoid}
+}
