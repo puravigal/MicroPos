@@ -152,7 +152,9 @@ function Billing({data,setData,settings,apiMode}){
  useEffect(()=>{let cancelled=false;if(apiMode){api.businessProfile().then(profile=>{if(!cancelled)setServerTaxProfile(profile)}).catch(()=>{});}return()=>{cancelled=true};},[apiMode]);
  const found=data.products.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())||(p.sku||"").toLowerCase().includes(q.toLowerCase())||(p.barcode||"").includes(q)).slice(0,12);
  // Prefer the persisted business profile in cloud mode so Billing never uses a stale GST toggle.
- const gstEnabled=apiMode&&serverTaxProfile?Boolean(serverTaxProfile.gst_enabled):settings.gst_enabled===true||settings.gst_enabled==="true"||settings.gst_enabled===1;
+ const settingsGstEnabled=settings.gst_enabled===true||settings.gst_enabled==="true"||settings.gst_enabled===1;
+ const profileGstEnabled=serverTaxProfile?.gst_enabled===true||serverTaxProfile?.gst_enabled==="true"||serverTaxProfile?.gst_enabled===1;
+ const gstEnabled=settingsGstEnabled||profileGstEnabled;
  const subtotal=cart.reduce((s,x)=>s+x.price*x.qty,0),discountTotal=Math.min(Number(discount)||0,subtotal),taxable=Math.max(0,subtotal-discountTotal);
  const inclusiveTax=String(settings.tax_mode||"exclusive")==="inclusive";
  const tax=gstEnabled&&subtotal>0?cart.reduce((sum,x)=>{const lineGross=x.price*x.qty;const lineDiscount=subtotal>0?discountTotal*(lineGross/subtotal):0;const lineBase=Math.max(0,lineGross-lineDiscount);const rate=Math.max(0,Number(x.tax_rate??x.tax??0));return sum+(inclusiveTax?(rate>0?lineBase*rate/(100+rate):0):lineBase*rate/100);},0):0;
