@@ -68,11 +68,11 @@ const SIGNUP_CURRENCIES=[
  {code:"ZAR",name:"South African Rand (ZAR)"},{code:"EUR",name:"Euro (EUR)"}
 ];
 function Auth({onLogin}){
- const [mode,setMode]=useState("login"),[form,setForm]=useState({email:"",password:"",display_name:"",business_name:"",phone:"",country_code:"IN",currency_code:"INR",timezone:"Asia/Kolkata",locale:"en-IN"}),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const [mode,setMode]=useState("login"),[form,setForm]=useState({email:"",password:"",display_name:"",business_name:"",phone:"",country_code:"IN",currency_code:"INR",timezone:"Asia/Kolkata",locale:"en-IN",account_type:"super_admin",invite_code:""}),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const changeCountry=code=>{const c=SIGNUP_COUNTRIES.find(x=>x.code===code)||SIGNUP_COUNTRIES[0];setForm(f=>({...f,country_code:c.code,currency_code:c.currency,timezone:c.timezone,locale:c.locale}));};
  const submit=async e=>{e.preventDefault();setError("");
    if(mode==="signup"){
-     if(!form.display_name.trim()||!form.business_name.trim()||!form.phone.trim()||!form.email.trim()||!form.password){setError("Please complete all required fields.");return;}
+     if(!form.display_name.trim()||!form.phone.trim()||!form.email.trim()||!form.password||(form.account_type==="super_admin"&&!form.business_name.trim())||(form.account_type==="user"&&!form.invite_code.trim())){setError("Please complete all required fields.");return;}
      const email=form.email.trim();if(!email || !email.includes("@") || email.indexOf("@")===0 || !email.slice(email.lastIndexOf("@")+1).includes(".") || email.endsWith(".")){setError("Enter a valid email address.");return;}
      if(form.password.length<8){setError("Password must contain at least 8 characters.");return;}
    }
@@ -80,15 +80,17 @@ function Auth({onLogin}){
    catch(err){setError(err.message||"Unable to create account. Please try again.");}
    finally{setBusy(false);}
  };
- return <div className="auth-page"><div className="auth-card"><div className="auth-brand"><div className="logo">P</div><div><strong>Puravigal POS</strong><small>Micro POS · Professional quality</small></div></div><div className="auth-copy"><p className="eyebrow">SECURE BUSINESS ACCESS</p><h1>{mode==="login"?"Welcome back":"Create your business"}</h1><p>Fast billing, inventory and business control from one workspace.</p></div>{error&&<div className="alert error" role="alert">{error}</div>}<form onSubmit={submit}>{mode==="signup"&&<>
+ return <div className="auth-page"><div className="auth-card"><div className="auth-brand"><div className="logo">P</div><div><strong>Puravigal POS</strong><small>Micro POS · Professional quality</small></div></div><div className="auth-copy"><p className="eyebrow">SECURE BUSINESS ACCESS</p><h1>{mode==="login"?"Welcome back":form.account_type==="user"?"Join your team":"Create your business"}</h1><p>Fast billing, inventory and business control from one workspace.</p></div>{error&&<div className="alert error" role="alert">{error}</div>}<form onSubmit={submit}>{mode==="signup"&&<>
+ <Field label="Account type"><select className="auth-role-select" value={form.account_type} onChange={e=>setForm({...form,account_type:e.target.value})}><option value="super_admin">Super Admin · Create a business</option><option value="user">Normal User · Join a business</option></select></Field>
  <Field label="Your name" value={form.display_name} autoComplete="name" required onChange={e=>setForm({...form,display_name:e.target.value})}/>
- <Field label="Business name" value={form.business_name} autoComplete="organization" required onChange={e=>setForm({...form,business_name:e.target.value})}/>
+ {form.account_type==="super_admin"&&<Field label="Business name" value={form.business_name} autoComplete="organization" required onChange={e=>setForm({...form,business_name:e.target.value})}/>}
  <Field label="Phone number" type="tel" value={form.phone} autoComplete="tel" placeholder="+91 98765 43210" required onChange={e=>setForm({...form,phone:e.target.value})}/>
- <div className="form-grid two">
+ {form.account_type==="super_admin"&&<div className="form-grid two">
   <Field label="Country" ><select value={form.country_code} onChange={e=>changeCountry(e.target.value)}>{SIGNUP_COUNTRIES.map(c=><option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}</select></Field>
   <Field label="Business currency"><select value={form.currency_code} onChange={e=>setForm({...form,currency_code:e.target.value})}>{SIGNUP_CURRENCIES.map(c=><option key={c.code} value={c.code}>{c.name}</option>)}</select></Field>
- </div>
- </>}<Field label="Email" type="email" autoComplete="email" value={form.email} required onChange={e=>setForm({...form,email:e.target.value})}/><Field label="Password (minimum 8 characters)" type="password" autoComplete={mode==="login"?"current-password":"new-password"} minLength={mode==="signup"?8:undefined} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/><button className="primary wide" disabled={busy}>{busy?"Please wait…":mode==="login"?"Sign in":"Create account"}</button></form><button className="link-button" onClick={()=>{setMode(mode==="login"?"signup":"login");setError("");}}>{mode==="login"?"Create a new business account":"Already have an account? Sign in"}</button><small className="auth-note">Production integrations can be enabled through your configured API and provider credentials.</small></div></div>
+ </div>}
+ {form.account_type==="user"&&<Field label="Business invite code" value={form.invite_code} autoComplete="off" placeholder="Ask your Super Admin for the code" required onChange={e=>setForm({...form,invite_code:e.target.value.toUpperCase()})}/>}
+ </>}<Field label="Email" type="email" autoComplete="email" value={form.email} required onChange={e=>setForm({...form,email:e.target.value})}/><Field label="Password (minimum 8 characters)" type="password" autoComplete={mode==="login"?"current-password":"new-password"} minLength={mode==="signup"?8:undefined} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/><button className="primary wide" disabled={busy}>{busy?"Please wait…":mode==="login"?"Sign in":"Create account"}</button></form><button className="link-button" onClick={()=>{setMode(mode==="login"?"signup":"login");setError("");}}>{mode==="login"?"Create an account":"Already have an account? Sign in"}</button><small className="auth-note">Production integrations can be enabled through your configured API and provider credentials.</small></div></div>
 }
 function Dashboard({data,settings,onGo,apiMode}){
  const [selectedInvoice,setSelectedInvoice]=useState(null),[hoveredDay,setHoveredDay]=useState(null);
