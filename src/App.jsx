@@ -218,9 +218,9 @@ function downloadCSV(rows,name){if(!rows.length)return;const keys=[...new Set(ro
 
 function parseCSVText(text){
  const rows=[];let row=[],cell="",quoted=false;
- for(let i=0;i<text.length;i++){const ch=text[i];if(ch==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(ch===","&&!quoted){row.push(cell);cell="";}else if((ch==="\\n"||ch==="\\r")&&!quoted){if(ch==="\\r"&&text[i+1]==="\\n")i++;row.push(cell);if(row.some(v=>v.trim()!==""))rows.push(row);row=[];cell="";}else cell+=ch;}
+ for(let i=0;i<text.length;i++){const ch=text[i];if(ch==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(ch===","&&!quoted){row.push(cell);cell="";}else if((ch==="\n"||ch==="\r")&&!quoted){if(ch==="\r"&&text[i+1]==="\n")i++;row.push(cell);if(row.some(v=>v.trim()!==""))rows.push(row);row=[];cell="";}else cell+=ch;}
  row.push(cell);if(row.some(v=>v.trim()!==""))rows.push(row);if(rows.length<2)return [];
- const headers=rows[0].map(v=>v.trim().replace(/^\\uFEFF/,""));
+ const headers=rows[0].map(v=>v.trim().replace(/^\uFEFF/,""));
  return rows.slice(1).map(values=>Object.fromEntries(headers.map((h,i)=>[h,(values[i]||"").trim()])));
 }
 function CsvTools({rows=[],filename,onImport,importLabel="Import CSV",exportLabel="Export CSV"}){
