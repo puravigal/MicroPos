@@ -1,10 +1,14 @@
 -- Puravigal POS production-oriented PostgreSQL foundation.
 -- India-first, UAE-ready, globally extensible.
+-- Business-level GST switch; GST is opt-in per organization.
+alter table organizations add column if not exists gst_enabled boolean not null default false;
+
 create extension if not exists pgcrypto;
 
 create table if not exists organizations(
  id uuid primary key default gen_random_uuid(), name text not null, legal_name text,
  country_code char(2) not null default 'IN', currency_code char(3) not null default 'INR',
+ gst_enabled boolean not null default false,
  timezone text not null default 'Asia/Kolkata', locale text not null default 'en-IN',
  tax_registration_number text, tax_registration_type text, address jsonb not null default '{}'::jsonb,
  created_at timestamptz not null default now(), updated_at timestamptz not null default now()
