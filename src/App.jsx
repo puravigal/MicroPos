@@ -158,7 +158,7 @@ function Inventory({data,setData,settings,apiMode}){
  const importInventory=async rows=>{
   let count=0;const errors=[];
   for(let i=0;i<rows.length;i++){const row=rows[i],identity=csvField(row,"product_id","sku","product","product_name","name");const product=data.products.find(x=>x.id===identity||String(x.sku||"").toLowerCase()===identity.toLowerCase()||x.name.toLowerCase()===identity.toLowerCase());const absoluteStock=csvField(row,"stock","current_stock");const amount=absoluteStock!==""?Number(absoluteStock)-Number(product?.stock||0):Number(csvField(row,"quantity","adjustment","stock_change"));const why=csvField(row,"reason")||"CSV inventory import";
-   if(!product||!Number.isFinite(amount)||amount===0){errors.push("Row "+(i+2)+": provide a valid product/SKU and non-zero quantity");continue;}
+   if(!product||!Number.isFinite(amount)|| (amount===0&&absoluteStock==="")){errors.push("Row "+(i+2)+": provide a valid product/SKU and non-zero quantity");continue;}if(amount===0){count++;continue;}
    try{if(apiMode){await api.adjustStock({product_id:product.id,quantity:amount,reason:why});}else{setData(d=>({...d,products:d.products.map(x=>x.id===product.id?{...x,stock:Number(x.stock||0)+amount}:x),movements:[...d.movements,{id:uid(),product_id:product.id,product_name:product.name,type:"adjustment",quantity:amount,reason:why,created_at:new Date().toISOString()}]}));}count++;}catch(e){errors.push("Row "+(i+2)+": "+e.message);}
   }
   if(apiMode){const r=await api.products();setData(d=>({...d,products:r.items}));}
