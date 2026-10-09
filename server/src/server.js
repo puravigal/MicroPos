@@ -81,11 +81,17 @@ async function issueSession(client,user,orgId,role){
   await client.query("insert into sessions(user_id,token_hash,expires_at) values($1,$2,$3)",[user.id,hashToken(refresh),expires]);
   return { access_token:accessToken(user,orgId,role), refresh_token:refresh, expires_at:expires.toISOString() };
 }
-function auth(req,res,next){
+async function auth(req,res,next){
   const header = req.headers.authorization || "";
   if(!header.startsWith("Bearer ")) return fail(res,401,"AUTH_REQUIRED","Authentication required.");
-  try { req.user = jwt.verify(header.slice(7),JWT_SECRET,{issuer:"puravigal-pos"}); next(); }
-  catch(e){ return fail(res,401,"SESSION_EXPIRED","Session is invalid or expired."); }
+  try {
+    const claims=jwt.verify(header.slice(7),JWT_SECRET,{issuer:"puravigal-pos"});
+    if(!pool)return fail(res,503,"DATABASE_NOT_CONFIGURED","Database is not configured.");
+    const membership=await pool.query("select ou.role from organization_users ou join users u on u.id=ou.user_id where ou.organization_id=$1 and ou.user_id=$2 and u.is_active=true",[claims.orgId,claims.sub]);
+    if(!membership.rowCount)return fail(res,401,"SESSION_REVOKED","This account no longer has access to the business.");
+    req.user={...claims,role:membership.rows[0].role==="owner"?"owner":"cashier"};
+    return next();
+  }catch(e){ return fail(res,401,"SESSION_EXPIRED","Session is invalid or expired."); }
 }
 function roles(){
   const allowed = Array.prototype.slice.call(arguments);
