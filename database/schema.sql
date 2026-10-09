@@ -89,6 +89,8 @@ create table if not exists customers(
  notes text, credit_limit numeric(19,4) not null default 0, opening_balance numeric(19,4) not null default 0,
  created_at timestamptz not null default now(), updated_at timestamptz not null default now()
 );
+create unique index if not exists customers_org_email_unique on customers(organization_id, lower(trim(email))) where email is not null and trim(email) <> '';
+
 create table if not exists suppliers(
  id uuid primary key default gen_random_uuid(), organization_id uuid not null references organizations(id) on delete cascade,
  name text not null, phone text, email text, tax_id text, address jsonb not null default '{}'::jsonb,
