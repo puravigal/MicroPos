@@ -28,15 +28,43 @@ if(process.env.NODE_ENV==="production" && JWT_SECRET==="development-only-change-
 if(process.env.NODE_ENV==="production" && !process.env.CORS_ORIGIN) throw new Error("CORS_ORIGIN must be configured in production");
 const ACCESS_TTL = "15m";
 const REFRESH_DAYS = 30;
+const AUTH_COOKIE_DOMAIN = process.env.AUTH_COOKIE_DOMAIN || ".puravigal.com";
+const AUTH_COOKIE_BASE = { httpOnly:true, secure:process.env.NODE_ENV==="production", sameSite:"lax", path:"/" };
+function setAuthCookies(res,session){
+  const domain=process.env.NODE_ENV==="production"?AUTH_COOKIE_DOMAIN:undefined;
+  const base={...AUTH_COOKIE_BASE,...(domain?{domain}: {})};
+  res.cookie("puravi_access",session.access_token,{...base,maxAge:15*60*1000});
+  res.cookie("puravi_refresh",session.refresh_token,{...base,maxAge:REFRESH_DAYS*86400000});
+}
+function clearAuthCookies(res){
+  const domain=process.env.NODE_ENV==="production"?AUTH_COOKIE_DOMAIN:undefined;
+  const base={...AUTH_COOKIE_BASE,...(domain?{domain}: {})};
+  res.clearCookie("puravi_access",base);
+  res.clearCookie("puravi_refresh",base);
+}
+function cookieValue(req,name){
+  const header=req.headers.cookie||"";
+  for(const part of header.split(";")){
+    const index=part.indexOf("=");
+    if(index<0)continue;
+    if(part.slice(0,index).trim()===name)return decodeURIComponent(part.slice(index+1).trim());
+  }
+  return null;
+}
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 600, standardHeaders: true, legacyHeaders: false });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false });
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(helmet());
+const configuredCorsOrigins=(process.env.CORS_ORIGIN||"").split(",").map(function(x){return x.trim();}).filter(Boolean);
+const sharedLoginOrigins=["https://puravigal.com","https://www.puravigal.com"];
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map(function(x){return x.trim();}) : true,
-  credentials: true
+  origin:function(origin,callback){
+    if(!origin || configuredCorsOrigins.includes(origin) || sharedLoginOrigins.includes(origin))return callback(null,true);
+    return callback(null,false);
+  },
+  credentials:true
 }));
 app.use(express.json({ limit: "2mb" }));
 app.use("/api", apiLimiter);
@@ -84,10 +112,11 @@ async function issueSession(client,user,orgId,role){
   return { access_token:accessToken(user,orgId,role), refresh_token:refresh, expires_at:expires.toISOString() };
 }
 async function auth(req,res,next){
-  const header = req.headers.authorization || "";
-  if(!header.startsWith("Bearer ")) return fail(res,401,"AUTH_REQUIRED","Authentication required.");
+  const header=req.headers.authorization||"";
+  const token=header.startsWith("Bearer ")?header.slice(7):cookieValue(req,"puravi_access");
+  if(!token)return fail(res,401,"AUTH_REQUIRED","Authentication required.");
   try {
-    const claims=jwt.verify(header.slice(7),JWT_SECRET,{issuer:"puravigal-pos"});
+    const claims=jwt.verify(token,JWT_SECRET,{issuer:"puravigal-pos"});
     if(!pool)return fail(res,503,"DATABASE_NOT_CONFIGURED","Database is not configured.");
     await ensureTeamPermissionsColumn();
     const membership=await pool.query("select ou.role,ou.permissions from organization_users ou join users u on u.id=ou.user_id where ou.organization_id=$1 and ou.user_id=$2 and u.is_active=true",[claims.orgId,claims.sub]);
@@ -315,13 +344,15 @@ app.post("/api/auth/login",authLimiter,async function(req,res){
     if(!q.rowCount || !q.rows[0].password_hash || !(await bcrypt.compare(p.data.password,q.rows[0].password_hash))) return fail(res,401,"INVALID_CREDENTIALS","Email or password is incorrect.");
     const x=q.rows[0], user={id:x.id,email:x.email,display_name:x.display_name};
     const session=await runTx(function(client){return issueSession(client,user,x.organization_id,x.role);});
+    setAuthCookies(res,session);
     return ok(res,{user:user,organization_id:x.organization_id,organization:{name:x.organization_name,country_code:x.country_code,currency_code:x.currency_code,timezone:x.timezone,locale:x.locale},role:x.role,permissions:x.permissions||["billing","customers","inventory"],session:session});
   }catch(e){console.error(e);return fail(res,500,"LOGIN_FAILED","Unable to sign in.");}
 });
 
 app.post("/api/auth/refresh",authLimiter,async function(req,res){
   if(!requireDb(res)) return;
-  const p=z.object({refresh_token:z.string().min(20)}).safeParse(req.body);
+  const refreshToken=(req.body&&req.body.refresh_token)||cookieValue(req,"puravi_refresh");
+  const p=z.object({refresh_token:z.string().min(20)}).safeParse({refresh_token:refreshToken});
   if(!p.success) return fail(res,400,"VALIDATION_ERROR","Refresh token is required.");
   try{
     const result=await runTx(async function(client){
@@ -333,14 +364,17 @@ app.post("/api/auth/refresh",authLimiter,async function(req,res){
       const x=q.rows[0], user={id:x.id,email:x.email,display_name:x.display_name};
       return issueSession(client,user,x.organization_id,x.role);
     });
+    setAuthCookies(res,result);
     return ok(res,{session:result});
   }catch(e){return fail(res,401,"INVALID_REFRESH","Refresh session is invalid or expired.");}
 });
 
 app.post("/api/auth/logout",auth,async function(req,res){
   if(!requireDb(res)) return;
-  const p=z.object({refresh_token:z.string().min(20).optional()}).safeParse(req.body || {});
+  const supplied=(req.body&&req.body.refresh_token)||cookieValue(req,"puravi_refresh");
+  const p=z.object({refresh_token:z.string().min(20).optional()}).safeParse({refresh_token:supplied});
   if(p.success && p.data.refresh_token) await pool.query("update sessions set revoked_at=now() where token_hash=$1 and user_id=$2",[hashToken(p.data.refresh_token),req.user.sub]);
+  clearAuthCookies(res);
   return ok(res,{ok:true});
 });
 
@@ -350,6 +384,12 @@ app.get("/api/me",auth,async function(req,res){
   const q=await pool.query("select u.id,u.email,u.display_name,ou.organization_id,ou.role,ou.permissions,o.name organization_name,o.country_code,o.currency_code,o.timezone,o.locale from users u join organization_users ou on ou.user_id=u.id join organizations o on o.id=ou.organization_id where u.id=$1 and o.id=$2",[req.user.sub,req.user.orgId]);
   if(!q.rowCount) return fail(res,404,"NOT_FOUND","Account not found.");
   return ok(res,q.rows[0]);
+});
+app.get("/api/auth/status",auth,async function(req,res){
+  if(!requireDb(res))return;
+  const q=await pool.query("select u.id,u.email,u.display_name,ou.organization_id,ou.role,o.name organization_name from users u join organization_users ou on ou.user_id=u.id join organizations o on o.id=ou.organization_id where u.id=$1 and o.id=$2 and u.is_active=true",[req.user.sub,req.user.orgId]);
+  if(!q.rowCount)return fail(res,401,"SESSION_REVOKED","Session is no longer active.");
+  return ok(res,{authenticated:true,user:q.rows[0]});
 });
 
 app.get("/api/stores",auth,roles("owner","cashier"),async function(req,res){
