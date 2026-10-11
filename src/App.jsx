@@ -322,8 +322,68 @@ function AddUserModal({onClose,onCreated}){
  return <Modal title={created?"User created successfully":"Add a staff user"} onClose={onClose}>{created?<div className="add-user-success"><div className="add-user-success-icon">✓</div><h3>{created.display_name} is ready to sign in</h3><p>Share these login details privately. This account is linked to your business and can access Billing, Customers and Inventory.</p><div className="credential-summary"><span>Email</span><strong>{created.email}</strong><span>Password</span><strong>{created.plainPassword}</strong><span>Access</span><strong>Billing · Customers · Inventory</strong></div>{error&&<div className="alert error">{error}</div>}<div className="modal-actions"><button className="secondary" onClick={copyDetails}>{copied?"Copied login details":"Copy login details"}</button><button className="primary" onClick={onCreated}>Done</button></div></div>:<form onSubmit={submit} className="add-user-form"><p className="add-user-intro">Create a login for your staff. They do not need to sign up or enter an invite code.</p>{error&&<div className="alert error" role="alert">{error}</div>}<Field label="Staff name" value={form.display_name} autoComplete="name" required onChange={e=>setForm({...form,display_name:e.target.value})}/><Field label="Email / username" type="email" value={form.email} autoComplete="email" required onChange={e=>setForm({...form,email:e.target.value})}/><Field label="Password (minimum 8 characters)" type="password" value={form.password} autoComplete="new-password" minLength={8} required onChange={e=>setForm({...form,password:e.target.value})}/><div className="staff-access-preview"><strong>Staff access</strong><div className="permission-chips"><span className="permission-chip">Billing</span><span className="permission-chip">Customers</span><span className="permission-chip">Inventory</span></div><small>Products, purchases, suppliers, reports and business settings remain restricted.</small></div><div className="modal-actions"><button type="button" className="secondary" onClick={onClose} disabled={busy}>Cancel</button><button type="submit" className="primary" disabled={busy}>{busy?"Creating user…":"Create user"}</button></div></form>}</Modal>;
 }
 
+
+function loadRazorpayCheckout(){
+ return new Promise((resolve,reject)=>{
+  if(window.Razorpay){resolve(true);return;}
+  const existing=document.querySelector('script[data-razorpay-checkout="true"]');
+  if(existing){existing.addEventListener("load",()=>resolve(Boolean(window.Razorpay)),{once:true});existing.addEventListener("error",()=>reject(new Error("Unable to load Razorpay Checkout.")),{once:true});return;}
+  const script=document.createElement("script");
+  script.src="https://checkout.razorpay.com/v1/checkout.js";
+  script.async=true;
+  script.dataset.razorpayCheckout="true";
+  script.onload=()=>window.Razorpay?resolve(true):reject(new Error("Razorpay Checkout did not initialize."));
+  script.onerror=()=>{script.remove();reject(new Error("Unable to load Razorpay Checkout. Check your internet connection and try again."));};
+  document.body.appendChild(script);
+ });
+}
+
+function RazorpayUpgrade({user,onClose}){
+ const [busy,setBusy]=useState(false),[notice,setNotice]=useState(""),[success,setSuccess]=useState(false);
+ const startTestPayment=async()=>{
+  setBusy(true);setNotice("");setSuccess(false);
+  try{
+   const order=await api.createRazorpayOrder();
+   await loadRazorpayCheckout();
+   const checkout=new window.Razorpay({
+    key:order.key_id,
+    amount:order.amount,
+    currency:order.currency,
+    name:"Puravigal POS",
+    description:"₹1 Razorpay Test Mode checkout",
+    order_id:order.order_id,
+    prefill:{name:user?.display_name||"",email:user?.email||""},
+    notes:{purpose:"upgrade_test"},
+    theme:{color:"#315be8"},
+    modal:{ondismiss:()=>{setBusy(false);setNotice("Checkout was closed. No subscription changes were made.");}},
+    handler:async function(response){
+     try{
+      const result=await api.verifyRazorpayPayment(response);
+      if(result.verified){setSuccess(true);setNotice("Test payment verified successfully. This was a simulated Test Mode payment; no subscription has been activated.");}
+      else{setNotice("Payment could not be verified. No subscription changes were made.");}
+     }catch(error){setNotice(error.message||"Payment verification failed. No subscription changes were made.");}
+     finally{setBusy(false);}
+    }
+   });
+   checkout.on("payment.failed",function(){setBusy(false);setNotice("Test payment failed. No subscription changes were made.");});
+   checkout.open();
+  }catch(error){setBusy(false);setNotice(error.message||"Unable to start Razorpay Test Mode checkout.");}
+ };
+ return <Modal title="Upgrade Puravigal POS" onClose={busy?()=>{}:onClose}>
+  <div className="upgrade-checkout">
+   <div className="upgrade-plan-row"><div><span className="eyebrow">PAYMENT GATEWAY CHECK</span><h3>Razorpay Test Checkout</h3><p>This temporary ₹1 test checks the checkout and signature-verification flow only.</p></div><strong>₹1.00</strong></div>
+   <div className="upgrade-detail-list"><div><span>Mode</span><strong className="test-mode-label">TEST MODE</strong></div><div><span>Charge</span><strong>Simulated · No real money</strong></div><div><span>Plan activation</span><strong>Disabled during testing</strong></div></div>
+   {notice&&<div className={"alert "+(success?"success":"")}>{notice}</div>}
+   {success&&<div className="upgrade-success"><NavIcon name="reports"/>Payment signature verified successfully.</div>}
+   <div className="modal-form-actions"><button className="secondary" disabled={busy} onClick={onClose}>Close</button><button className="primary" disabled={busy||success} onClick={startTestPayment}>{busy?"Opening checkout…":success?"Test complete":"Pay ₹1 test amount"}</button></div>
+   <small className="upgrade-footnote">Live payments are disabled. A successful test does not charge your bank account or enable paid features.</small>
+  </div>
+ </Modal>;
+}
+
+
 export default function App(){
- const [authReady,setAuthReady]=useState(!isApiConfigured||Boolean(getAccessToken())),[user,setUser]=useState(null),[active,setActive]=useState("dashboard"),[data,setData]=useState(load()),[apiMode,setApiMode]=useState(isApiConfigured),[loading,setLoading]=useState(isApiConfigured),[settings,setSettings]=useState(data.settings),[accountOpen,setAccountOpen]=useState(false),[addUserOpen,setAddUserOpen]=useState(false),[teamRefresh,setTeamRefresh]=useState(0); const addUserIntent=useRef(false);
+ const [authReady,setAuthReady]=useState(!isApiConfigured||Boolean(getAccessToken())),[user,setUser]=useState(null),[active,setActive]=useState("dashboard"),[data,setData]=useState(load()),[apiMode,setApiMode]=useState(isApiConfigured),[loading,setLoading]=useState(isApiConfigured),[settings,setSettings]=useState(data.settings),[accountOpen,setAccountOpen]=useState(false),[addUserOpen,setAddUserOpen]=useState(false),[teamRefresh,setTeamRefresh]=useState(0),[upgradeOpen,setUpgradeOpen]=useState(false); const addUserIntent=useRef(false);
  useEffect(()=>{addUserIntent.current=false;setAddUserOpen(false);setAccountOpen(false);},[]);
  useEffect(()=>save(data),[data]);
  useEffect(()=>{if(!isApiConfigured||!user)return; (async()=>{try{const p=await api.products(),c=await api.customers(),inv=await api.invoices();if(user.role==="owner"){const [sup,pur,st]=await Promise.all([api.suppliers(),api.purchaseList(),api.settings()]);setData(d=>({...d,products:p.items,customers:c.items,suppliers:sup.items,sales:inv.items,purchases:pur.items,settings:{...d.settings,...st.organization,...st.business}}));setSettings(x=>({...x,...st.organization,...st.business}));}else{const bp=await api.businessProfile();setData(d=>({...d,products:p.items,customers:c.items,sales:inv.items,settings:{...d.settings,...bp,currency_code:user.currency_code||bp.currency_code||d.settings.currency_code}}));setSettings(x=>({...x,...bp,currency_code:user.currency_code||bp.currency_code||x.currency_code}));}}catch(e){console.warn(e.message)}})();},[user]);
@@ -338,5 +398,5 @@ export default function App(){
  const safeActive=isSuperAdmin?active:(normalPermissions.includes(active)?active:(normalPermissions[0]||"billing"));
  const go=id=>{setActive(isSuperAdmin||normalPermissions.includes(id)?id:safeActive);setAccountOpen(false);};
  const content=safeActive==="dashboard"?<Dashboard data={data} settings={settings} onGo={go} apiMode={apiMode} currentUser={currentUser}/>:safeActive==="billing"?<Billing data={data} setData={setData} settings={settings} apiMode={apiMode}/>:safeActive==="products"?<Products data={data} setData={setData} settings={settings} apiMode={apiMode}/>:safeActive==="inventory"?<Inventory data={data} setData={setData} settings={settings} apiMode={apiMode}/>:safeActive==="purchases"?<Purchases data={data} setData={setData} settings={settings} apiMode={apiMode}/>:safeActive==="customers"?<People kind="Customers" data={data} setData={setData} apiMode={apiMode}/>:safeActive==="suppliers"?<People kind="Suppliers" data={data} setData={setData} apiMode={apiMode}/>:safeActive==="reports"?<Reports data={data} settings={settings} apiMode={apiMode}/>:safeActive==="returns"?<Returns data={data} setData={setData} settings={settings} apiMode={apiMode}/>:<Settings data={data} setData={setData} settings={settings} setSettings={setSettings} apiMode={apiMode} onLogout={logout} currentUser={currentUser} teamRefresh={teamRefresh}/>;
- return <div className="app"><header className="topbar"><div className="brand" onClick={()=>go("dashboard")}><div className="logo">P</div><div><strong>Puravigal POS</strong><span>Micro POS · Professional quality</span></div></div><div className="top-actions"><span className="mode-pill">{apiMode?"● Cloud":"● Demo"}</span><div className="account-area"><button className={"user-chip"+(accountOpen?" account-open":"")} onClick={()=>setAccountOpen(v=>!v)} aria-expanded={accountOpen}><span className="user-avatar">{String(currentUser.display_name||currentUser.email||"O").trim().charAt(0).toUpperCase()}</span><span className="user-identity"><b>{currentUser.display_name||"Owner"}</b><small>{currentUser.role==="owner"?"Super Admin":"Normal User"}</small></span><span className="account-chevron">⌄</span></button>{accountOpen&&<><button className="account-dismiss" aria-label="Close account menu" onClick={()=>setAccountOpen(false)}></button><div className="account-menu"><div className="account-menu-profile"><strong>{currentUser.display_name||"Owner"}</strong><small>{currentUser.email||""}</small></div>{isSuperAdmin&&<button onClick={()=>{addUserIntent.current=true;setAddUserOpen(true);setAccountOpen(false);}}><NavIcon name="customers"/>Add user</button>}{isSuperAdmin&&<button onClick={()=>go("settings")}><NavIcon name="settings"/>Account & business settings</button>}<button className="account-signout" onClick={logout}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></svg>Sign out</button></div></>}</div></div></header><main><div className="mobile-head"><p className="eyebrow">PURAVIGAL POS</p><h1>{modules.find(x=>x.id===safeActive)?.label}</h1></div><section className="workspace-shell"><aside className="sidebar"><div className="side-title">Workspace</div>{visibleModules.map(m=><button key={m.id} className={safeActive===m.id?"side-item selected":"side-item"} onClick={()=>go(m.id)}><span className="side-icon"><NavIcon name={m.icon}/></span>{m.label}</button>)}</aside><div className="content">{content}</div></section></main><nav className="bottom-nav">{visibleModules.slice(0,5).map(m=><button key={m.id} className={safeActive===m.id?"selected":""} onClick={()=>go(m.id)}><span className="side-icon"><NavIcon name={m.icon}/></span><small>{m.label}</small></button>)}</nav>{authReady&&isSuperAdmin&&addUserIntent.current&&addUserOpen&&<AddUserModal onClose={()=>{addUserIntent.current=false;setAddUserOpen(false);}} onCreated={()=>{addUserIntent.current=false;setAddUserOpen(false);setTeamRefresh(v=>v+1);}}/>}</div>
+ return <div className="app"><header className="topbar"><div className="brand" onClick={()=>go("dashboard")}><div className="logo">P</div><div><strong>Puravigal POS</strong><span>Micro POS · Professional quality</span></div></div><div className="top-actions"><span className="mode-pill">{apiMode?"● Cloud":"● Demo"}</span>{isSuperAdmin&&<button className="primary upgrade-button" onClick={()=>setUpgradeOpen(true)}>Upgrade</button>}<div className="account-area"><button className={"user-chip"+(accountOpen?" account-open":"")} onClick={()=>setAccountOpen(v=>!v)} aria-expanded={accountOpen}><span className="user-avatar">{String(currentUser.display_name||currentUser.email||"O").trim().charAt(0).toUpperCase()}</span><span className="user-identity"><b>{currentUser.display_name||"Owner"}</b><small>{currentUser.role==="owner"?"Super Admin":"Normal User"}</small></span><span className="account-chevron">⌄</span></button>{accountOpen&&<><button className="account-dismiss" aria-label="Close account menu" onClick={()=>setAccountOpen(false)}></button><div className="account-menu"><div className="account-menu-profile"><strong>{currentUser.display_name||"Owner"}</strong><small>{currentUser.email||""}</small></div>{isSuperAdmin&&<button onClick={()=>{addUserIntent.current=true;setAddUserOpen(true);setAccountOpen(false);}}><NavIcon name="customers"/>Add user</button>}{isSuperAdmin&&<button onClick={()=>go("settings")}><NavIcon name="settings"/>Account & business settings</button>}<button className="account-signout" onClick={logout}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></svg>Sign out</button></div></>}</div></div></header><main><div className="mobile-head"><p className="eyebrow">PURAVIGAL POS</p><h1>{modules.find(x=>x.id===safeActive)?.label}</h1></div><section className="workspace-shell"><aside className="sidebar"><div className="side-title">Workspace</div>{visibleModules.map(m=><button key={m.id} className={safeActive===m.id?"side-item selected":"side-item"} onClick={()=>go(m.id)}><span className="side-icon"><NavIcon name={m.icon}/></span>{m.label}</button>)}</aside><div className="content">{content}</div></section></main><nav className="bottom-nav">{visibleModules.slice(0,5).map(m=><button key={m.id} className={safeActive===m.id?"selected":""} onClick={()=>go(m.id)}><span className="side-icon"><NavIcon name={m.icon}/></span><small>{m.label}</small></button>)}</nav>{authReady&&isSuperAdmin&&addUserIntent.current&&addUserOpen&&<AddUserModal onClose={()=>{addUserIntent.current=false;setAddUserOpen(false);}} onCreated={()=>{addUserIntent.current=false;setAddUserOpen(false);setTeamRefresh(v=>v+1);}}/>}{authReady&&isSuperAdmin&&upgradeOpen&&<RazorpayUpgrade user={currentUser} onClose={()=>setUpgradeOpen(false)}/>}</div>
 }
