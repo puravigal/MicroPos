@@ -491,3 +491,9 @@ main{width:100%;max-width:1660px;margin-inline:auto}
  .brand strong{font-size:14px}
  .settings-toast,.product-toast{right:12px;bottom:84px}
 }
+
+/* Billing's selected payment method uses the existing .chosen state. */
+.pay-methods{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.pay-methods>button{min-width:0;padding:11px 8px;border:1px solid #dbe2ee;border-radius:10px;background:#fff;color:#4b5870;font-weight:750;transition:background .15s,border-color .15s,box-shadow .15s}
+.pay-methods>button.chosen{background:#eaf0ff!important;border:2px solid #315be8!important;color:#214bc8!important;box-shadow:0 0 0 3px #315be81a}
+@media(max-width:500px){.pay-methods{grid-template-columns:repeat(3,minmax(0,1fr))}}
