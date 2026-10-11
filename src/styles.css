@@ -436,3 +436,22 @@ th{background:#f8faff}
 /* Settings save reminder — scoped to the Settings page only. */
 .settings-unsaved-notice{display:flex;flex-direction:column;gap:4px;margin-top:14px;padding:12px 14px;border:1px solid #f0c36d;border-radius:10px;background:#fff9e9;color:#7a4b00;font-size:13px;line-height:1.45;}
 .settings-unsaved-notice strong{font-weight:700;}
+
+/* Razorpay test checkout */
+.upgrade-button{white-space:nowrap;padding:9px 15px;font-size:12px}
+.upgrade-checkout{display:grid;gap:16px}
+.upgrade-plan-row{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:18px;border:1px solid #e4e9f2;border-radius:14px;background:#fbfcff}
+.upgrade-plan-row h3{margin:7px 0 6px;font-size:17px}
+.upgrade-plan-row p{margin:0;color:var(--muted);font-size:12px;line-height:1.55;max-width:440px}
+.upgrade-plan-row>strong{font-size:26px;white-space:nowrap;color:#182033}
+.upgrade-detail-list{display:grid;gap:0;border:1px solid var(--line);border-radius:12px;padding:0 14px}
+.upgrade-detail-list>div{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid #edf0f5;font-size:12px}
+.upgrade-detail-list>div:last-child{border-bottom:0}
+.upgrade-detail-list>div>span{color:var(--muted)}
+.upgrade-detail-list>div>strong{text-align:right}
+.test-mode-label{color:#8a5a00;background:#fff4d6;border-radius:999px;padding:5px 8px;font-size:10px;letter-spacing:.5px}
+.upgrade-success{display:flex;align-items:center;gap:9px;padding:12px;border-radius:10px;background:#eafaf2;color:#137c4a;font-size:12px;font-weight:700}
+.upgrade-success svg{width:18px;height:18px;flex:none}
+.upgrade-footnote{color:var(--muted);font-size:11px;line-height:1.5}
+.alert.success{background:#eafaf2;border-color:#b9ecd1;color:#137c4a}
+@media(max-width:800px){.upgrade-button{padding:8px 11px;font-size:11px}.top-actions{gap:8px}}
