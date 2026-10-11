@@ -7,6 +7,7 @@ import rateLimit from "express-rate-limit";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "node:crypto";
+import Razorpay from "razorpay";
 import pg from "pg";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,7 +57,7 @@ const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 40, standardHeade
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
-app.use(helmet());
+app.use(helmet({contentSecurityPolicy:{directives:{scriptSrc:["'self'","https://checkout.razorpay.com"],frameSrc:["'self'","https://checkout.razorpay.com","https://api.razorpay.com"],connectSrc:["'self'","https://api.razorpay.com"]}}}));
 const configuredCorsOrigins=(process.env.CORS_ORIGIN||"").split(",").map(function(x){return x.trim();}).filter(Boolean);
 const sharedLoginOrigins=["https://puravigal.com","https://www.puravigal.com"];
 app.use(cors({
