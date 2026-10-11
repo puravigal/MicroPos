@@ -920,6 +920,61 @@ app.post("/api/offline/sync",auth,async function(req,res){
   return ok(res,{results:results});
 });
 
+
+const RAZORPAY_TEST_AMOUNT_PAISE = 100;
+function razorpayTestClient(){
+ const keyId=process.env.RAZORPAY_KEY_ID||"";
+ const keySecret=process.env.RAZORPAY_KEY_SECRET||"";
+ if(!keyId||!keySecret)throw Object.assign(new Error("Razorpay Test API keys are not configured on the server."),{code:"RAZORPAY_NOT_CONFIGURED"});
+ if(!keyId.startsWith("rzp_test_"))throw Object.assign(new Error("This integration is restricted to Razorpay Test Mode."),{code:"RAZORPAY_TEST_MODE_REQUIRED"});
+ return {client:new Razorpay({key_id:keyId,key_secret:keySecret}),keyId:keyId,keySecret:keySecret};
+}
+function razorpayProviderError(res,error,operation){
+ const status=Number(error?.statusCode||error?.status||0);
+ if(status===401||status===403)return fail(res,401,"RAZORPAY_AUTH_FAILED","Razorpay rejected the configured Test API credentials.");
+ if(error?.code==="RAZORPAY_NOT_CONFIGURED")return fail(res,503,"RAZORPAY_NOT_CONFIGURED",error.message);
+ if(error?.code==="RAZORPAY_TEST_MODE_REQUIRED")return fail(res,503,"RAZORPAY_TEST_MODE_REQUIRED",error.message);
+ console.error("Razorpay "+operation+" failed:",error?.message||"Unknown provider error");
+ return fail(res,500,"RAZORPAY_"+operation.toUpperCase()+"_FAILED","Razorpay could not complete the test payment request.");
+}
+app.post("/api/create-order",auth,roles("owner","admin"),async function(req,res){
+ if(!requireDb(res))return;
+ let gateway;
+ try{gateway=razorpayTestClient();}catch(e){return razorpayProviderError(res,e,"create_order");}
+ try{
+  const order=await gateway.client.orders.create({
+   amount:RAZORPAY_TEST_AMOUNT_PAISE,
+   currency:"INR",
+   receipt:"pvgtest_"+crypto.randomBytes(8).toString("hex"),
+   notes:{organization_id:String(req.user.orgId),user_id:String(req.user.sub),purpose:"puravigal_pos_upgrade_test"}
+  });
+  return ok(res,{order_id:order.id,amount:order.amount,currency:order.currency,key_id:gateway.keyId,test_mode:true,purpose:"upgrade_test"});
+ }catch(e){return razorpayProviderError(res,e,"create_order");}
+});
+app.post("/api/verify-payment",auth,roles("owner","admin"),async function(req,res){
+ if(!requireDb(res))return;
+ const parsed=z.object({
+  razorpay_order_id:z.string().min(1).max(100),
+  razorpay_payment_id:z.string().min(1).max(100),
+  razorpay_signature:z.string().regex(/^[a-f0-9]{64}$/i)
+ }).safeParse(req.body);
+ if(!parsed.success)return fail(res,400,"PAYMENT_FIELDS_REQUIRED","Order ID, payment ID and payment signature are required.");
+ let gateway;
+ try{gateway=razorpayTestClient();}catch(e){return razorpayProviderError(res,e,"verify_payment");}
+ const d=parsed.data;
+ const expected=crypto.createHmac("sha256",gateway.keySecret).update(d.razorpay_order_id+"|"+d.razorpay_payment_id).digest();
+ const supplied=Buffer.from(d.razorpay_signature,"hex");
+ if(expected.length!==supplied.length||!crypto.timingSafeEqual(expected,supplied))return fail(res,400,"PAYMENT_SIGNATURE_INVALID","Payment signature verification failed. No subscription was changed.");
+ try{
+  const order=await gateway.client.orders.fetch(d.razorpay_order_id);
+  if(String(order.notes?.organization_id||"")!==String(req.user.orgId)||order.notes?.purpose!=="puravigal_pos_upgrade_test")return fail(res,400,"PAYMENT_ORDER_MISMATCH","This test order does not belong to the signed-in organization.");
+  if(Number(order.amount)!==RAZORPAY_TEST_AMOUNT_PAISE||String(order.currency)!=="INR")return fail(res,400,"PAYMENT_AMOUNT_MISMATCH","The test order amount or currency is not valid.");
+  const payment=await gateway.client.payments.fetch(d.razorpay_payment_id);
+  if(String(payment.order_id)!==String(order.id)||!["authorized","captured"].includes(String(payment.status))||Number(payment.amount)!==RAZORPAY_TEST_AMOUNT_PAISE)return fail(res,400,"PAYMENT_NOT_CONFIRMED","Razorpay has not confirmed this test payment for the expected order.");
+  return ok(res,{verified:true,test_mode:true,amount:payment.amount,currency:payment.currency,payment_id:payment.id,subscription_activated:false,message:"Razorpay Test Mode payment signature verified. No live charge or subscription activation occurred."});
+ }catch(e){return razorpayProviderError(res,e,"verify_payment");}
+});
+
 app.use(express.static(FRONTEND_DIST,{index:"index.html"}));
 app.use(function(req,res,next){
   if(req.method==="GET" && req.accepts("html")){
