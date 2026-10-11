@@ -69,7 +69,7 @@ const SIGNUP_CURRENCIES=[
  {code:"ZAR",name:"South African Rand (ZAR)"},{code:"EUR",name:"Euro (EUR)"}
 ];
 function Auth({onLogin}){
- const [mode,setMode]=useState("login"),[form,setForm]=useState({email:"",password:"",confirmPassword:"",otp:"",display_name:"",business_name:"",country_code:"IN",currency_code:"INR",timezone:"Asia/Kolkata",locale:"en-IN"}),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
+ const [mode,setMode]=useState(()=>new URLSearchParams(window.location.search).get("signup")==="true"?"signup":"login"),[form,setForm]=useState({email:"",password:"",confirmPassword:"",otp:"",display_name:"",business_name:"",country_code:"IN",currency_code:"INR",timezone:"Asia/Kolkata",locale:"en-IN"}),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const changeCountry=code=>{const c=SIGNUP_COUNTRIES.find(x=>x.code===code)||SIGNUP_COUNTRIES[0];setForm(f=>({...f,country_code:c.code,currency_code:c.currency,timezone:c.timezone,locale:c.locale}));};
  const submit=async e=>{e.preventDefault();setError("");setNotice("");
    if(!form.email.trim()||!form.email.includes("@")){setError("Enter a valid email address.");return;}
