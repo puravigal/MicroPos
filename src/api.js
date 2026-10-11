@@ -63,5 +63,7 @@ export const api={
   importPreview:(body)=>request("/api/imports/preview",{method:"POST",body:JSON.stringify(body)}),
   importCommit:(body)=>request("/api/imports/commit",{method:"POST",body:JSON.stringify(body)}),
   imports:()=>request("/api/imports"),
-  sync:(body)=>request("/api/offline/sync",{method:"POST",body:JSON.stringify(body)})
+  sync:(body)=>request("/api/offline/sync",{method:"POST",body:JSON.stringify(body)}),
+  createRazorpayOrder:()=>request("/api/create-order",{method:"POST",body:JSON.stringify({})}),
+  verifyRazorpayPayment:(body)=>request("/api/verify-payment",{method:"POST",body:JSON.stringify(body)})
 };
