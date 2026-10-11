@@ -455,3 +455,39 @@ th{background:#f8faff}
 .upgrade-footnote{color:var(--muted);font-size:11px;line-height:1.5}
 .alert.success{background:#eafaf2;border-color:#b9ecd1;color:#137c4a}
 @media(max-width:800px){.upgrade-button{padding:8px 11px;font-size:11px}.top-actions{gap:8px}}
+
+
+/* Reported UI fixes: stable content width, compact side toasts, modal and form responsiveness. */
+:root{scrollbar-gutter:stable}
+html{overflow-y:scroll}
+main{width:100%;max-width:1660px;margin-inline:auto}
+.workspace-shell{width:100%;min-width:0}
+.content,.page{min-width:0;width:100%}
+.page-head,.section-title{min-width:0}
+.modal{box-sizing:border-box;width:min(620px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);overflow:auto}
+.modal>*{min-width:0}
+.modal-form-actions,.modal-actions{flex-wrap:wrap}
+.modal .form-grid,.modal .form-grid.two,.modal .form-grid.three{grid-template-columns:repeat(2,minmax(0,1fr))}
+.modal .field,.modal .field input,.modal .field select{box-sizing:border-box;width:100%;min-width:0;max-width:100%}
+.modal .field input[type=email]{overflow:hidden;text-overflow:ellipsis}
+.import-row-count{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:11px;background:#f8faff}
+.import-row-count .field-label{margin:0}
+.import-row-count strong{font-size:16px;font-variant-numeric:tabular-nums}
+.role-save-button{display:block;margin-top:7px;padding:7px 10px!important;font-size:11px!important;white-space:nowrap}
+.settings-toast,.product-toast{position:fixed;z-index:1200;right:22px;bottom:24px;width:min(360px,calc(100vw - 32px));padding:12px 16px;border:1px solid #c8d8f4;border-radius:12px;background:#fff;color:#253653;box-shadow:0 12px 36px #1c2c4a24;font-size:13px;line-height:1.45}
+.brand{min-width:0;cursor:pointer}
+.brand>div:last-child{min-width:0}
+.brand strong{white-space:nowrap;display:block}
+.brand strong em{font-style:normal;color:#315be8}
+.brand-mark{display:grid;place-items:center;width:100%;height:100%;font-weight:900;font-size:24px;letter-spacing:-.08em;color:#fff}
+.logo{background:linear-gradient(140deg,#315be8,#6543d7)!important;border-radius:12px!important;overflow:hidden}
+.payment-methods button[aria-pressed="true"],.payment-method button[aria-pressed="true"],.payment-methods button.selected,.payment-method button.selected{background:#eaf0ff!important;border:2px solid #315be8!important;color:#214bc8!important;box-shadow:0 0 0 3px #315be81a}
+.payment-methods button,.payment-method button{transition:background .15s,border-color .15s,box-shadow .15s}
+@media(max-width:620px){
+ .modal{width:calc(100vw - 20px);max-width:calc(100vw - 20px);max-height:calc(100dvh - 20px);padding:16px}
+ .modal .form-grid,.modal .form-grid.two,.modal .form-grid.three{grid-template-columns:minmax(0,1fr)}
+ .modal .modal-head{gap:10px}
+ .modal .modal-head h3{min-width:0;overflow-wrap:anywhere}
+ .brand strong{font-size:14px}
+ .settings-toast,.product-toast{right:12px;bottom:84px}
+}
