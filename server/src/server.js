@@ -57,7 +57,7 @@ const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 40, standardHeade
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
-app.use(helmet({contentSecurityPolicy:{directives:{scriptSrc:["'self'","https://checkout.razorpay.com"],frameSrc:["'self'","https://checkout.razorpay.com","https://api.razorpay.com"],connectSrc:["'self'","https://api.razorpay.com"]}}}));
+app.use(helmet({contentSecurityPolicy:{directives:{scriptSrc:["'self'","https://checkout.razorpay.com","https://cdn.razorpay.com"],frameSrc:["'self'","https://checkout.razorpay.com","https://api.razorpay.com"],connectSrc:["'self'","https://api.razorpay.com","https://lumberjack.razorpay.com"]}}}));
 const configuredCorsOrigins=(process.env.CORS_ORIGIN||"").split(",").map(function(x){return x.trim();}).filter(Boolean);
 const sharedLoginOrigins=["https://puravigal.com","https://www.puravigal.com"];
 app.use(cors({
