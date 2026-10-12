@@ -366,7 +366,7 @@ function RazorpayUpgrade({user,onClose}){
      finally{setBusy(false);}
     }
    });
-   checkout.on("payment.failed",function(){setBusy(false);setNotice("Test payment failed. No subscription changes were made.");});
+   checkout.on("payment.failed",function(event){setBusy(false);const detail=event&&event.error||{};const parts=[detail.description,detail.reason&&("Reason: "+detail.reason),detail.code&&("Code: "+detail.code)].filter(Boolean);setNotice("Razorpay test payment failed. "+(parts.join(" · ")||"No payment was confirmed.")+" No subscription changes were made.");});
    checkout.open();
   }catch(error){setBusy(false);setNotice(error.message||"Unable to start Razorpay Test Mode checkout.");}
  };
