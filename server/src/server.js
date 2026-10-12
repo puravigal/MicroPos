@@ -969,9 +969,17 @@ app.post("/api/verify-payment",auth,roles("owner","admin"),async function(req,re
   const order=await gateway.client.orders.fetch(d.razorpay_order_id);
   if(String(order.notes?.organization_id||"")!==String(req.user.orgId)||order.notes?.purpose!=="puravigal_pos_upgrade_test")return fail(res,400,"PAYMENT_ORDER_MISMATCH","This test order does not belong to the signed-in organization.");
   if(Number(order.amount)!==RAZORPAY_TEST_AMOUNT_PAISE||String(order.currency)!=="INR")return fail(res,400,"PAYMENT_AMOUNT_MISMATCH","The test order amount or currency is not valid.");
-  const payment=await gateway.client.payments.fetch(d.razorpay_payment_id);
-  if(String(payment.order_id)!==String(order.id)||!["authorized","captured"].includes(String(payment.status))||Number(payment.amount)!==RAZORPAY_TEST_AMOUNT_PAISE)return fail(res,400,"PAYMENT_NOT_CONFIRMED","Razorpay has not confirmed this test payment for the expected order.");
-  return ok(res,{verified:true,test_mode:true,amount:payment.amount,currency:payment.currency,payment_id:payment.id,subscription_activated:false,message:"Razorpay Test Mode payment signature verified. No live charge or subscription activation occurred."});
+  let payment=await gateway.client.payments.fetch(d.razorpay_payment_id);
+  if(String(payment.order_id)!==String(order.id))return fail(res,400,"PAYMENT_ORDER_MISMATCH","This payment does not belong to the Razorpay test order.");
+  if(Number(payment.amount)!==RAZORPAY_TEST_AMOUNT_PAISE||String(payment.currency)!=="INR")return fail(res,400,"PAYMENT_AMOUNT_MISMATCH","The test payment amount or currency is not valid.");
+  /* Some Razorpay accounts leave checkout payments authorized until captured.
+     Capture only this server-created ₹1 test order, then verify the final state. */
+  if(String(payment.status)==="authorized"){
+   await gateway.client.payments.capture(payment.id,RAZORPAY_TEST_AMOUNT_PAISE,"INR");
+   payment=await gateway.client.payments.fetch(d.razorpay_payment_id);
+  }
+  if(String(payment.status)!=="captured")return fail(res,400,"PAYMENT_NOT_CONFIRMED","Razorpay has not captured this test payment. Current payment status: "+String(payment.status||"unknown")+". No subscription was changed.");
+  return ok(res,{verified:true,test_mode:true,amount:payment.amount,currency:payment.currency,payment_id:payment.id,payment_status:payment.status,subscription_activated:false,message:"Razorpay Test Mode payment captured and signature verified. No live charge or subscription activation occurred."});
  }catch(e){return razorpayProviderError(res,e,"verify_payment");}
 });
 
