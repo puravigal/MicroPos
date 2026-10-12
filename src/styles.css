@@ -536,3 +536,6 @@ main{width:100%;max-width:1660px;margin-inline:auto}
 /* Quiet dashboard action icons: match the compact, subtle navigation icon treatment. */
 .quick-action-icon{background:transparent!important;color:#64748b!important;border-radius:10px!important;}
 .quick-action-icon svg{stroke-width:1.55!important;}
+
+/* Keep Upgrade hidden until payment checkout is ready. */
+.upgrade-button{display:none!important;}
