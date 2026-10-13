@@ -289,7 +289,7 @@ app.post("/api/auth/sso/exchange",authLimiter,async function(req,res){
     await ensureAccountsUserIdColumn();
     const result=await runTx(async function(client){
       let userResult=await client.query(
-        "select id,email,display_name,phone,is_active from users where accounts_user_id=$1 or lower(email)=lower($2) order by case when accounts_user_id=$1 then 0 else 1 end limit 1",
+        "select id,email,display_name,phone,is_active,accounts_user_id from users where accounts_user_id=$1 or lower(email)=lower($2) order by case when accounts_user_id=$1 then 0 else 1 end limit 1",
         [account.id,email]
       );
       let user;
@@ -301,8 +301,9 @@ app.post("/api/auth/sso/exchange",authLimiter,async function(req,res){
       }else{
         user=userResult.rows[0];
         if(!user.is_active)throw Object.assign(new Error("POS account is disabled"),{code:"POS_ACCOUNT_DISABLED"});
+        if(user.accounts_user_id && user.accounts_user_id!==account.id)throw Object.assign(new Error("POS account is linked to another central identity"),{code:"ACCOUNT_LINK_CONFLICT"});
         user=(await client.query(
-          "update users set accounts_user_id=coalesce(accounts_user_id,$1),is_verified=true,updated_at=now() where id=$2 returning id,email,display_name,phone,is_active",
+          "update users set accounts_user_id=coalesce(accounts_user_id,$1),is_verified=true,updated_at=now() where id=$2 returning id,email,display_name,phone,is_active,accounts_user_id",
           [account.id,user.id]
         )).rows[0];
       }
