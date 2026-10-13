@@ -321,7 +321,7 @@ function RazorpayUpgrade({user,onClose}){
 
 
 export default function App(){
- const [authReady,setAuthReady]=useState(!isApiConfigured||Boolean(getAccessToken())),[user,setUser]=useState(null),[active,setActive]=useState("dashboard"),[data,setData]=useState(load()),[apiMode,setApiMode]=useState(isApiConfigured),[loading,setLoading]=useState(isApiConfigured),[settings,setSettings]=useState(data.settings),[accountOpen,setAccountOpen]=useState(false),[addUserOpen,setAddUserOpen]=useState(false),[teamRefresh,setTeamRefresh]=useState(0),[upgradeOpen,setUpgradeOpen]=useState(false); const addUserIntent=useRef(false);
+ const [authReady,setAuthReady]=useState(!isApiConfigured||Boolean(getAccessToken())),[user,setUser]=useState(null),[active,setActive]=useState("dashboard"),[data,setData]=useState(load()),[apiMode,setApiMode]=useState(isApiConfigured),[loading,setLoading]=useState(isApiConfigured),[settings,setSettings]=useState(data.settings),[accountOpen,setAccountOpen]=useState(false),[addUserOpen,setAddUserOpen]=useState(false),[teamRefresh,setTeamRefresh]=useState(0),[upgradeOpen,setUpgradeOpen]=useState(false),[ssoError,setSsoError]=useState(""); const addUserIntent=useRef(false);
  const [globalToast,setGlobalToast]=useState(null);
  useEffect(()=>{const onNotification=e=>{const detail=e.detail||{};setGlobalToast({message:detail.message||"Action completed.",type:detail.type||"success",id:Date.now()});};window.addEventListener("pos:notification",onNotification);return()=>window.removeEventListener("pos:notification",onNotification);},[]);
  useEffect(()=>{if(!globalToast)return;const id=window.setTimeout(()=>setGlobalToast(null),4200);return()=>window.clearTimeout(id);},[globalToast?.id]);
@@ -333,11 +333,12 @@ export default function App(){
   let cancelled=false;
   const accountToken=new URLSearchParams(window.location.hash.slice(1)).get("account_access_token");
   if(accountToken){
-   window.history.replaceState({},document.title,window.location.pathname+window.location.search);
    (async()=>{
     try{
      const r=await api.exchangeAccountToken(accountToken);
      if(cancelled)return;
+     window.history.replaceState({},document.title,window.location.pathname+window.location.search);
+     setSsoError("");
      saveSession(r.session);
      const nextUser={...r.user,role:r.role||r.user?.role||"owner",permissions:r.permissions||r.user?.permissions||["billing","customers","inventory"],organization_id:r.organization_id,...(r.organization||{})};
      setApiMode(true);setUser(nextUser);setAddUserOpen(false);setAccountOpen(false);
@@ -345,10 +346,7 @@ export default function App(){
      setAuthReady(true);
     }catch(e){
      clearSession();
-     if(!cancelled){
-      const redirect=encodeURIComponent(window.location.origin+"/sso/callback");
-      window.location.replace("https://puravigal-accounts.onrender.com/?redirect_to="+redirect);
-     }
+     if(!cancelled)setSsoError(e.message||"Unable to connect to Puravigal Accounts. Please check the account API configuration and try again.");
     }finally{if(!cancelled)setLoading(false);}
    })();
    return ()=>{cancelled=true;};
@@ -375,6 +373,7 @@ export default function App(){
   return ()=>{cancelled=true;};
  },[]);
  if(loading)return <div className="loading-screen"><div className="spinner"/><strong>Connecting your Puravigal account…</strong><small>Preparing your secure POS workspace</small></div>;
+ if(!authReady&&ssoError)return <div className="loading-screen"><strong>Could not connect your Puravigal account</strong><small>{ssoError}</small><button className="primary" onClick={()=>window.location.reload()}>Try again</button><button className="secondary" onClick={()=>window.location.replace("https://puravigal-accounts.onrender.com/")}>Back to Puravigal Accounts</button></div>;
  if(!authReady)return <div className="loading-screen"><div className="spinner"/><strong>Redirecting to Puravigal Accounts…</strong><small>Sign in with your common Puravigal account</small></div>;
  const currentUser=user||data.user||seed.user;
  const logout=async()=>{addUserIntent.current=false;setAddUserOpen(false);setAccountOpen(false);try{if(apiMode)await api.logout({refresh_token:localStorage.getItem("puravi_refresh")});}catch{}clearSession();setUser(null);window.location.replace("https://puravigal-accounts.onrender.com/?logout=true");};
