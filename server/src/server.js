@@ -78,7 +78,7 @@ const money = z.coerce.number().finite().nonnegative();
 const positive = z.coerce.number().finite().positive();
 
 function accessToken(user, orgId, role){
-  return jwt.sign({ sub:user.id, email:user.email, orgId:orgId, role:role }, JWT_SECRET, { expiresIn:ACCESS_TTL, issuer:"puravigal-pos" });
+  return jwt.sign({ sub:user.id, email:user.email, orgId:orgId, role:role, authProvider:"puravigal-accounts" }, JWT_SECRET, { expiresIn:ACCESS_TTL, issuer:"puravigal-pos" });
 }
 function hashToken(value){ return crypto.createHash("sha256").update(value).digest("hex"); }
 function newRefreshToken(){ return crypto.randomBytes(48).toString("base64url"); }
@@ -118,6 +118,7 @@ async function auth(req,res,next){
   if(!token)return fail(res,401,"AUTH_REQUIRED","Authentication required.");
   try {
     const claims=jwt.verify(token,JWT_SECRET,{issuer:"puravigal-pos"});
+    if(claims.authProvider!=="puravigal-accounts")return fail(res,401,"CENTRAL_AUTH_REQUIRED","Please sign in through Puravigal Accounts.");
     if(!pool)return fail(res,503,"DATABASE_NOT_CONFIGURED","Database is not configured.");
     await ensureTeamPermissionsColumn();
     const membership=await pool.query("select ou.role,ou.permissions from organization_users ou join users u on u.id=ou.user_id where ou.organization_id=$1 and ou.user_id=$2 and u.is_active=true",[claims.orgId,claims.sub]);
@@ -455,6 +456,7 @@ app.post("/api/auth/login",authLimiter,async function(req,res){
 
 app.post("/api/auth/refresh",authLimiter,async function(req,res){
   if(!requireDb(res)) return;
+  await ensureAccountsUserIdColumn();
   const refreshToken=(req.body&&req.body.refresh_token)||cookieValue(req,"puravi_refresh");
   const p=z.object({refresh_token:z.string().min(20)}).safeParse({refresh_token:refreshToken});
   if(!p.success) return fail(res,400,"VALIDATION_ERROR","Refresh token is required.");
@@ -463,7 +465,7 @@ app.post("/api/auth/refresh",authLimiter,async function(req,res){
       const old=await client.query("select s.id,s.user_id from sessions s where s.token_hash=$1 and s.revoked_at is null and s.expires_at>now() for update",[hashToken(p.data.refresh_token)]);
       if(!old.rowCount) throw Object.assign(new Error("Invalid refresh"),{code:"INVALID_REFRESH"});
       await client.query("update sessions set revoked_at=now() where id=$1",[old.rows[0].id]);
-      const q=await client.query("select u.id,u.email,u.display_name,ou.organization_id,ou.role from users u join organization_users ou on ou.user_id=u.id where u.id=$1 and u.is_active=true order by ou.created_at limit 1",[old.rows[0].user_id]);
+      const q=await client.query("select u.id,u.email,u.display_name,ou.organization_id,ou.role from users u join organization_users ou on ou.user_id=u.id where u.id=$1 and u.is_active=true and u.accounts_user_id is not null order by ou.created_at limit 1",[old.rows[0].user_id]);
       if(!q.rowCount) throw Object.assign(new Error("User missing"),{code:"INVALID_REFRESH"});
       const x=q.rows[0], user={id:x.id,email:x.email,display_name:x.display_name};
       return issueSession(client,user,x.organization_id,x.role);
