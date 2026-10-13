@@ -77,8 +77,8 @@ const uuid = z.string().uuid();
 const money = z.coerce.number().finite().nonnegative();
 const positive = z.coerce.number().finite().positive();
 
-function accessToken(user, orgId, role){
-  return jwt.sign({ sub:user.id, email:user.email, orgId:orgId, role:role, authProvider:"puravigal-accounts" }, JWT_SECRET, { expiresIn:ACCESS_TTL, issuer:"puravigal-pos" });
+function accessToken(user, orgId, role, sessionId){
+  return jwt.sign({ sub:user.id, email:user.email, orgId:orgId, role:role, sid:sessionId, authProvider:"puravigal-accounts" }, JWT_SECRET, { expiresIn:ACCESS_TTL, issuer:"puravigal-pos" });
 }
 function hashToken(value){ return crypto.createHash("sha256").update(value).digest("hex"); }
 function newRefreshToken(){ return crypto.randomBytes(48).toString("base64url"); }
@@ -109,8 +109,9 @@ async function sendPasswordResetOtpEmail(to,otp){
 async function issueSession(client,user,orgId,role){
   const refresh = newRefreshToken();
   const expires = new Date(Date.now() + REFRESH_DAYS * 86400000);
-  await client.query("insert into sessions(user_id,token_hash,expires_at) values($1,$2,$3)",[user.id,hashToken(refresh),expires]);
-  return { access_token:accessToken(user,orgId,role), refresh_token:refresh, expires_at:expires.toISOString() };
+  const created=await client.query("insert into sessions(user_id,token_hash,expires_at) values($1,$2,$3) returning id",[user.id,hashToken(refresh),expires]);
+  const sessionId=created.rows[0].id;
+  return { access_token:accessToken(user,orgId,role,sessionId), refresh_token:refresh, expires_at:expires.toISOString() };
 }
 async function auth(req,res,next){
   const header=req.headers.authorization||"";
@@ -120,6 +121,9 @@ async function auth(req,res,next){
     const claims=jwt.verify(token,JWT_SECRET,{issuer:"puravigal-pos"});
     if(claims.authProvider!=="puravigal-accounts")return fail(res,401,"CENTRAL_AUTH_REQUIRED","Please sign in through Puravigal Accounts.");
     if(!pool)return fail(res,503,"DATABASE_NOT_CONFIGURED","Database is not configured.");
+    if(!claims.sid)return fail(res,401,"SESSION_REVOKED","Please sign in again to continue.");
+    const activeSession=await pool.query("select 1 from sessions where id=$1 and user_id=$2 and revoked_at is null and expires_at>now()",[claims.sid,claims.sub]);
+    if(!activeSession.rowCount)return fail(res,401,"SESSION_REVOKED","This session has been signed out. Please sign in again.");
     await ensureTeamPermissionsColumn();
     const membership=await pool.query("select ou.role,ou.permissions from organization_users ou join users u on u.id=ou.user_id where ou.organization_id=$1 and ou.user_id=$2 and u.is_active=true",[claims.orgId,claims.sub]);
     if(!membership.rowCount)return fail(res,401,"SESSION_REVOKED","This account no longer has access to the business.");
@@ -477,11 +481,10 @@ app.post("/api/auth/refresh",authLimiter,async function(req,res){
 
 app.post("/api/auth/logout",auth,async function(req,res){
   if(!requireDb(res)) return;
-  const supplied=(req.body&&req.body.refresh_token)||cookieValue(req,"puravi_refresh");
-  const p=z.object({refresh_token:z.string().min(20).optional()}).safeParse({refresh_token:supplied});
-  if(p.success && p.data.refresh_token) await pool.query("update sessions set revoked_at=now() where token_hash=$1 and user_id=$2",[hashToken(p.data.refresh_token),req.user.sub]);
+  // Puravigal common logout: revoke every active MicroPos session for this central account.
+  await pool.query("update sessions set revoked_at=now() where user_id=$1 and revoked_at is null",[req.user.sub]);
   clearAuthCookies(res);
-  return ok(res,{ok:true});
+  return ok(res,{ok:true,scope:"all-product-sessions"});
 });
 
 app.get("/api/me",auth,async function(req,res){
