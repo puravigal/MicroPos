@@ -142,6 +142,14 @@ function ensureTeamPermissionsColumn(){
   if(!teamPermissionsReady)teamPermissionsReady=pool.query("alter table organization_users add column if not exists permissions jsonb not null default '[\"billing\",\"customers\",\"inventory\"]'::jsonb").catch(function(e){teamPermissionsReady=null;throw e;});
   return teamPermissionsReady;
 }
+let accountsUserIdReady;
+function ensureAccountsUserIdColumn(){
+  if(!pool)return Promise.reject(Object.assign(new Error("Database not configured"),{code:"DATABASE_NOT_CONFIGURED"}));
+  if(!accountsUserIdReady)accountsUserIdReady=pool.query("alter table users add column if not exists accounts_user_id uuid").then(function(){
+    return pool.query("create unique index if not exists users_accounts_user_id_unique on users(accounts_user_id) where accounts_user_id is not null");
+  }).catch(function(e){accountsUserIdReady=null;throw e;});
+  return accountsUserIdReady;
+}
 let gstColumnReady;
 function ensureGstColumn(){
   if(!pool)return Promise.reject(Object.assign(new Error("Database not configured"),{code:"DATABASE_NOT_CONFIGURED"}));
@@ -253,6 +261,100 @@ app.get("/api/health",async function(req,res){
   let database="not-configured";
   if(pool){ try{await pool.query("select 1");database="ok";}catch(e){database="error";} }
   return ok(res,{ok:true,service:"puravigal-pos-api",database:database,time:new Date().toISOString()});
+});
+
+const PURAVIGAL_ACCOUNTS_API_URL=(process.env.PURAVIGAL_ACCOUNTS_API_URL||"https://puravigal-accounts-api.onrender.com").replace(/\/+$/,"");
+app.post("/api/auth/sso/exchange",authLimiter,async function(req,res){
+  if(!requireDb(res))return;
+  const accountAccessToken=req.body&&req.body.account_access_token;
+  if(typeof accountAccessToken!=="string"||accountAccessToken.length<20||accountAccessToken.length>8192){
+    return fail(res,400,"ACCOUNT_TOKEN_REQUIRED","A valid Puravigal Accounts session is required.");
+  }
+  try{
+    const verifiedResponse=await fetch(PURAVIGAL_ACCOUNTS_API_URL+"/api/sso/verify",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({access_token:accountAccessToken}),
+      signal:AbortSignal.timeout(15000)
+    });
+    const verified=await verifiedResponse.json().catch(function(){return {};});
+    if(!verifiedResponse.ok||!verified.user||!verified.user.id||!verified.user.email){
+      if(verifiedResponse.status>=500)return fail(res,503,"ACCOUNT_VERIFICATION_UNAVAILABLE","Puravigal Accounts could not verify your session. Please try again.");
+      return fail(res,401,"INVALID_ACCOUNT_SESSION","Please sign in to Puravigal Accounts again.");
+    }
+    const account=verified.user;
+    const email=String(account.email).trim().toLowerCase();
+    const displayName=String(account.full_name||"").trim()||email.split("@")[0]||"Puravigal User";
+    await ensureTeamPermissionsColumn();
+    await ensureAccountsUserIdColumn();
+    const result=await runTx(async function(client){
+      let userResult=await client.query(
+        "select id,email,display_name,phone,is_active from users where accounts_user_id=$1 or lower(email)=lower($2) order by case when accounts_user_id=$1 then 0 else 1 end limit 1",
+        [account.id,email]
+      );
+      let user;
+      if(!userResult.rowCount){
+        user=(await client.query(
+          "insert into users(email,display_name,is_verified,accounts_user_id) values($1,$2,true,$3) returning id,email,display_name,phone,is_active",
+          [email,displayName,account.id]
+        )).rows[0];
+      }else{
+        user=userResult.rows[0];
+        if(!user.is_active)throw Object.assign(new Error("POS account is disabled"),{code:"POS_ACCOUNT_DISABLED"});
+        user=(await client.query(
+          "update users set accounts_user_id=coalesce(accounts_user_id,$1),is_verified=true,updated_at=now() where id=$2 returning id,email,display_name,phone,is_active",
+          [account.id,user.id]
+        )).rows[0];
+      }
+      if(!user.is_active)throw Object.assign(new Error("POS account is disabled"),{code:"POS_ACCOUNT_DISABLED"});
+      let membership=(await client.query(
+        "select ou.organization_id,ou.role,ou.permissions,o.name organization_name,o.country_code,o.currency_code,o.timezone,o.locale from organization_users ou join organizations o on o.id=ou.organization_id where ou.user_id=$1 order by case when ou.role='owner' then 0 else 1 end,ou.created_at limit 1",
+        [user.id]
+      )).rows[0];
+      if(!membership){
+        const businessName=(displayName+"'s Business").slice(0,200);
+        const org=(await client.query(
+          "insert into organizations(name,country_code,currency_code,timezone,locale) values($1,'IN','INR','Asia/Kolkata','en-IN') returning id,name,country_code,currency_code,timezone,locale",
+          [businessName]
+        )).rows[0];
+        await client.query("insert into organization_users(organization_id,user_id,role,permissions) values($1,$2,'owner',$3)",[
+          org.id,user.id,JSON.stringify(["billing","customers","inventory","products","purchases","suppliers","reports","returns","settings"])
+        ]);
+        await client.query("insert into stores(organization_id,name,code) values($1,$2,'MAIN')",[org.id,businessName]);
+        await client.query("insert into business_settings(organization_id) values($1)",[org.id]);
+        await client.query(
+          "insert into tax_profiles(organization_id,name,country_code,rate,components,is_zero_rated,is_exempt) values($1,'Standard Tax','IN',0,$2,false,false)",
+          [org.id,JSON.stringify([])]
+        );
+        membership={organization_id:org.id,role:"owner",permissions:["billing","customers","inventory","products","purchases","suppliers","reports","returns","settings"],organization_name:org.name,country_code:org.country_code,currency_code:org.currency_code,timezone:org.timezone,locale:org.locale};
+      }
+      const role=membership.role||"owner";
+      const session=await issueSession(client,user,membership.organization_id,role);
+      return {
+        user:{id:user.id,email:user.email,display_name:user.display_name},
+        organization_id:membership.organization_id,
+        organization:{name:membership.organization_name,country_code:membership.country_code,currency_code:membership.currency_code,timezone:membership.timezone,locale:membership.locale},
+        role:role,
+        permissions:Array.isArray(membership.permissions)?membership.permissions:["billing","customers","inventory"],
+        session:session
+      };
+    });
+    setAuthCookies(res,result.session);
+    return ok(res,result);
+  }catch(e){
+    if(e.code==="POS_ACCOUNT_DISABLED")return fail(res,403,"POS_ACCOUNT_DISABLED","This POS account is disabled. Contact your business administrator.");
+    if(e.code==="23505")return fail(res,409,"ACCOUNT_LINK_CONFLICT","This Puravigal account is already linked. Please contact support.");
+    console.error("POS central account exchange failed",e);
+    return fail(res,500,"SSO_EXCHANGE_FAILED","Unable to prepare your POS workspace. Please try again.");
+  }
+});
+
+
+// Legacy local-password endpoints are intentionally disabled. Use Puravigal Accounts for identity and recovery.
+["/api/auth/signup","/api/auth/login","/api/auth/password-reset/request","/api/auth/password-reset/verify"].forEach(function(route){
+  app.post(route,authLimiter,function(req,res){
+    return fail(res,410,"CENTRAL_AUTH_REQUIRED","Sign in and manage your password through Puravigal Accounts.");
+  });
 });
 
 app.post("/api/auth/signup",authLimiter,async function(req,res){
