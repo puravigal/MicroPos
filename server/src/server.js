@@ -59,7 +59,7 @@ app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(helmet({contentSecurityPolicy:{directives:{scriptSrc:["'self'","https://checkout.razorpay.com","https://cdn.razorpay.com"],frameSrc:["'self'","https://checkout.razorpay.com","https://api.razorpay.com"],connectSrc:["'self'","https://api.razorpay.com","https://lumberjack.razorpay.com"]}}}));
 const configuredCorsOrigins=(process.env.CORS_ORIGIN||"").split(",").map(function(x){return x.trim();}).filter(Boolean);
-const sharedLoginOrigins=["https://puravigal.com","https://www.puravigal.com"];
+const sharedLoginOrigins=["https://puravigal.com","https://www.puravigal.com","https://puravigal-accounts.onrender.com"];
 app.use(cors({
   origin:function(origin,callback){
     if(!origin || configuredCorsOrigins.includes(origin) || sharedLoginOrigins.includes(origin))return callback(null,true);
@@ -269,6 +269,35 @@ app.get("/api/health",async function(req,res){
 });
 
 const PURAVIGAL_ACCOUNTS_API_URL=(process.env.PURAVIGAL_ACCOUNTS_API_URL||"https://puravigal-accounts-api.onrender.com").replace(/\/+$/,"");
+app.post("/api/auth/sso/logout",authLimiter,async function(req,res){
+  if(!requireDb(res))return;
+  const accountAccessToken=req.body&&req.body.access_token;
+  if(typeof accountAccessToken!=="string"||accountAccessToken.length<20||accountAccessToken.length>8192){
+    return fail(res,400,"ACCOUNT_TOKEN_REQUIRED","A valid Puravigal Accounts session is required.");
+  }
+  try{
+    const verifiedResponse=await fetch(PURAVIGAL_ACCOUNTS_API_URL+"/api/sso/verify",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({access_token:accountAccessToken}),
+      signal:AbortSignal.timeout(15000)
+    });
+    const verified=await verifiedResponse.json().catch(function(){return {};});
+    if(!verifiedResponse.ok||!verified.user||!verified.user.id){
+      return fail(res,401,"INVALID_ACCOUNT_SESSION","Please sign in to Puravigal Accounts again.");
+    }
+    await ensureAccountsUserIdColumn();
+    const user=await pool.query("select id from users where accounts_user_id=$1",[verified.user.id]);
+    if(user.rowCount){
+      await pool.query("update sessions set revoked_at=now() where user_id=$1 and revoked_at is null",[user.rows[0].id]);
+    }
+    return ok(res,{ok:true,scope:"all-product-sessions"});
+  }catch(e){
+    console.error("POS central sign-out bridge failed",e);
+    return fail(res,503,"SIGNOUT_BRIDGE_UNAVAILABLE","Unable to revoke POS sessions right now.");
+  }
+});
+
 app.post("/api/auth/sso/exchange",authLimiter,async function(req,res){
   if(!requireDb(res))return;
   const accountAccessToken=req.body&&req.body.account_access_token;
