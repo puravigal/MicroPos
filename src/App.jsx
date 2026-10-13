@@ -50,69 +50,6 @@ const modules=[
  {id:"settings",label:"Settings",icon:"settings"}
 ];
 
-const SIGNUP_COUNTRIES=[
- {code:"IN",name:"India",dial:"+91",currency:"INR",timezone:"Asia/Kolkata",locale:"en-IN"},
- {code:"AE",name:"United Arab Emirates",dial:"+971",currency:"AED",timezone:"Asia/Dubai",locale:"en-AE"},
- {code:"US",name:"United States",dial:"+1",currency:"USD",timezone:"America/New_York",locale:"en-US"},
- {code:"GB",name:"United Kingdom",dial:"+44",currency:"GBP",timezone:"Europe/London",locale:"en-GB"},
- {code:"SA",name:"Saudi Arabia",dial:"+966",currency:"SAR",timezone:"Asia/Riyadh",locale:"en-SA"},
- {code:"QA",name:"Qatar",dial:"+974",currency:"QAR",timezone:"Asia/Qatar",locale:"en-QA"},
- {code:"OM",name:"Oman",dial:"+968",currency:"OMR",timezone:"Asia/Muscat",locale:"en-OM"},
- {code:"BH",name:"Bahrain",dial:"+973",currency:"BHD",timezone:"Asia/Bahrain",locale:"en-BH"},
- {code:"ZA",name:"South Africa",dial:"+27",currency:"ZAR",timezone:"Africa/Johannesburg",locale:"en-ZA"}
-];
-const SIGNUP_CURRENCIES=[
- {code:"INR",name:"Indian Rupee (INR)"},{code:"AED",name:"UAE Dirham (AED)"},
- {code:"USD",name:"US Dollar (USD)"},{code:"GBP",name:"British Pound (GBP)"},
- {code:"SAR",name:"Saudi Riyal (SAR)"},{code:"QAR",name:"Qatari Riyal (QAR)"},
- {code:"OMR",name:"Omani Rial (OMR)"},{code:"BHD",name:"Bahraini Dinar (BHD)"},
- {code:"ZAR",name:"South African Rand (ZAR)"},{code:"EUR",name:"Euro (EUR)"}
-];
-function Auth({onLogin}){
- const [mode,setMode]=useState(()=>new URLSearchParams(window.location.search).get("signup")==="true"?"signup":"login"),[form,setForm]=useState({email:"",password:"",confirmPassword:"",otp:"",display_name:"",business_name:"",country_code:"IN",currency_code:"INR",timezone:"Asia/Kolkata",locale:"en-IN"}),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
- const changeCountry=code=>{const c=SIGNUP_COUNTRIES.find(x=>x.code===code)||SIGNUP_COUNTRIES[0];setForm(f=>({...f,country_code:c.code,currency_code:c.currency,timezone:c.timezone,locale:c.locale}));};
- const submit=async e=>{e.preventDefault();setError("");setNotice("");
-   if(!form.email.trim()||!form.email.includes("@")){setError("Enter a valid email address.");return;}
-   if(mode==="signup"){
-     if(!form.display_name.trim()||!form.business_name.trim()||!form.password){setError("Please complete all required fields.");return;}
-     const email=form.email.trim();if(email.indexOf("@")===0||!email.slice(email.lastIndexOf("@")+1).includes(".")||email.endsWith(".")){setError("Enter a valid email address.");return;}
-     if(form.password.length<8){setError("Password must contain at least 8 characters.");return;}
-   }
-   if(mode==="reset"){
-     if(!/^\d{6}$/.test(form.otp)){setError("Enter the 6-digit OTP from your email.");return;}
-     if(form.password.length<8){setError("New password must contain at least 8 characters.");return;}
-     if(form.password!==form.confirmPassword){setError("New password and confirmation do not match.");return;}
-   }
-   setBusy(true);
-   try{
-    if(mode==="forgot"){
-     const r=await api.requestPasswordReset(form.email.trim());setMode("reset");setNotice(r.message||"If an account exists, an OTP has been sent to that email.");return;
-    }
-    if(mode==="reset"){
-     const r=await api.verifyPasswordReset({email:form.email.trim(),otp:form.otp,new_password:form.password});setMode("login");setForm(f=>({...f,password:"",confirmPassword:"",otp:""}));setNotice(r.message||"Password reset successfully. Please sign in with your new password.");return;
-    }
-    const r=mode==="login"?await api.login({email:form.email.trim(),password:form.password}):await api.signup({...form,email:form.email.trim()});saveSession(r.session);onLogin(r);
-   }catch(err){setError(err.message||"Unable to complete the request. Please try again.");}
-   finally{setBusy(false);}
- };
- const title=mode==="login"?"Welcome back":mode==="signup"?"Create your business":mode==="forgot"?"Forgot password?":"Reset your password";
- return <div className="auth-page"><div className="auth-card"><div className="auth-brand"><div className="logo"><span className="brand-mark">P</span></div><div><strong>Puravigal POS</strong><small>Micro POS · Professional quality</small></div></div><div className="auth-copy"><p className="eyebrow">SECURE BUSINESS ACCESS</p><h1>{title}</h1><p>{mode==="forgot"?"Enter your registered email address and we’ll send a password reset OTP.":mode==="reset"?"Enter the 6-digit OTP and choose a new password.": "Fast billing, inventory and business control from one workspace."}</p></div>{error&&<div className="alert error" role="alert">{error}</div>}{notice&&<div className="alert" role="status">{notice}</div>}
- <form onSubmit={submit}>
- {mode==="signup"&&<>
- <Field label="Your name" value={form.display_name} autoComplete="name" required onChange={e=>setForm({...form,display_name:e.target.value})}/>
- <Field label="Business name" value={form.business_name} autoComplete="organization" required onChange={e=>setForm({...form,business_name:e.target.value})}/>
- <div className="form-grid two"><Field label="Country"><select value={form.country_code} onChange={e=>changeCountry(e.target.value)}>{SIGNUP_COUNTRIES.map(c=><option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}</select></Field><Field label="Business currency"><select value={form.currency_code} onChange={e=>setForm({...form,currency_code:e.target.value})}>{SIGNUP_CURRENCIES.map(c=><option key={c.code} value={c.code}>{c.name}</option>)}</select></Field></div>
- </>}
- <Field label="Email" type="email" autoComplete="email" value={form.email} required onChange={e=>setForm({...form,email:e.target.value})}/>
- {mode==="login"&&<Field label="Password" type="password" autoComplete="current-password" value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/>}
- {mode==="login"&&<div className="auth-forgot-row"><button type="button" className="link-button" onClick={()=>{setMode("forgot");setError("");setNotice("");}}>Forgot password?</button></div>}
- {mode==="signup"&&<Field label="Password (minimum 8 characters)" type="password" autoComplete="new-password" minLength={8} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/>}
- {mode==="reset"&&<><Field label="6-digit OTP" inputMode="numeric" autoComplete="one-time-code" value={form.otp} required placeholder="Enter OTP from email" onChange={e=>setForm({...form,otp:e.target.value.replace(/\D/g,"").slice(0,6)})}/><Field label="New password (minimum 8 characters)" type="password" autoComplete="new-password" minLength={8} value={form.password} required onChange={e=>setForm({...form,password:e.target.value})}/><Field label="Confirm new password" type="password" autoComplete="new-password" minLength={8} value={form.confirmPassword} required onChange={e=>setForm({...form,confirmPassword:e.target.value})}/></>}
- <button className="primary wide" disabled={busy}>{busy?"Please wait…":mode==="login"?"Sign in":mode==="signup"?"Create account":mode==="forgot"?"Send reset OTP":"Reset password"}</button>
- </form>
- <div className="auth-secondary-actions">{mode==="reset"&&<button className="link-button" disabled={busy} onClick={async()=>{setBusy(true);setError("");setNotice("");try{const r=await api.requestPasswordReset(form.email.trim());setForm(f=>({...f,otp:"",password:"",confirmPassword:""}));setNotice(r.message||"If an account exists, a new OTP has been sent.");}catch(e){setError(e.message||"Unable to request a new OTP.");}finally{setBusy(false);}}}>Resend OTP</button>}<button className="link-button" disabled={busy} onClick={()=>{setMode(mode==="signup"?"login":(mode==="login"?"signup":"login"));setError("");setNotice("");}}>{mode==="signup"?"Already have an account? Sign in":mode==="login"?"Create an account":"Back to sign in"}</button></div>
- <small className="auth-note">Password reset requires access to your registered email address.</small></div></div>
-}
 function Dashboard({data,settings,onGo,apiMode,currentUser}){
  const [selectedInvoice,setSelectedInvoice]=useState(null),[hoveredDay,setHoveredDay]=useState(null),[now,setNow]=useState(()=>new Date());
  useEffect(()=>{const timer=setInterval(()=>setNow(new Date()),60000);return ()=>clearInterval(timer);},[]);
@@ -391,11 +328,56 @@ export default function App(){
  useEffect(()=>{addUserIntent.current=false;setAddUserOpen(false);setAccountOpen(false);},[]);
  useEffect(()=>save(data),[data]);
  useEffect(()=>{if(!isApiConfigured||!user)return; (async()=>{try{const p=await api.products(),c=await api.customers(),inv=await api.invoices();if(user.role==="owner"){const [sup,pur,st]=await Promise.all([api.suppliers(),api.purchaseList(),api.settings()]);setData(d=>({...d,products:p.items,customers:c.items,suppliers:sup.items,sales:inv.items,purchases:pur.items,settings:{...d.settings,...st.organization,...st.business}}));setSettings(x=>({...x,...st.organization,...st.business}));}else{const bp=await api.businessProfile();setData(d=>({...d,products:p.items,customers:c.items,sales:inv.items,settings:{...d.settings,...bp,currency_code:user.currency_code||bp.currency_code||d.settings.currency_code}}));setSettings(x=>({...x,...bp,currency_code:user.currency_code||bp.currency_code||x.currency_code}));}}catch(e){console.warn(e.message)}})();},[user]);
- useEffect(()=>{if(!isApiConfigured){setLoading(false);return;} if(!getAccessToken()){setAuthReady(false);setLoading(false);return;} (async()=>{try{const me=await api.me();setUser(me);setAddUserOpen(false);setAccountOpen(false);setActive(me.role==="owner"?"dashboard":((me.permissions||["billing","customers","inventory"])[0]||"billing"));setAuthReady(true);}catch(e){clearSession();setAuthReady(false);}finally{setLoading(false)}})();},[]);
- if(loading)return <div className="loading-screen"><div className="spinner"/><strong>Loading Puravigal POS…</strong><small>Preparing your secure workspace</small></div>;
- if(!authReady)return <Auth onLogin={r=>{const nextUser={...r.user,role:r.role||r.user?.role||"owner",permissions:r.permissions||r.user?.permissions||["billing","customers","inventory"],organization_id:r.organization_id,...(r.organization||{})};addUserIntent.current=false;setAddUserOpen(false);setAccountOpen(false);setUser(nextUser);setActive(nextUser.role==="owner"?"dashboard":((nextUser.permissions||["billing","customers","inventory"])[0]||"billing"));setAuthReady(true);}}/>;
+ useEffect(()=>{
+  if(!isApiConfigured){setLoading(false);return;}
+  let cancelled=false;
+  const accountToken=new URLSearchParams(window.location.hash.slice(1)).get("account_access_token");
+  if(accountToken){
+   window.history.replaceState({},document.title,window.location.pathname+window.location.search);
+   (async()=>{
+    try{
+     const r=await api.exchangeAccountToken(accountToken);
+     if(cancelled)return;
+     saveSession(r.session);
+     const nextUser={...r.user,role:r.role||r.user?.role||"owner",permissions:r.permissions||r.user?.permissions||["billing","customers","inventory"],organization_id:r.organization_id,...(r.organization||{})};
+     setApiMode(true);setUser(nextUser);setAddUserOpen(false);setAccountOpen(false);
+     setActive(nextUser.role==="owner"?"dashboard":((nextUser.permissions||["billing","customers","inventory"])[0]||"billing"));
+     setAuthReady(true);
+    }catch(e){
+     clearSession();
+     if(!cancelled){
+      const redirect=encodeURIComponent(window.location.origin+"/sso/callback");
+      window.location.replace("https://puravigal-accounts.onrender.com/?redirect_to="+redirect);
+     }
+    }finally{if(!cancelled)setLoading(false);}
+   })();
+   return ()=>{cancelled=true;};
+  }
+  if(!getAccessToken()){
+   const redirect=encodeURIComponent(window.location.origin+"/sso/callback");
+   window.location.replace("https://puravigal-accounts.onrender.com/?redirect_to="+redirect);
+   return ()=>{cancelled=true;};
+  }
+  (async()=>{
+   try{
+    const me=await api.me();if(cancelled)return;
+    setUser(me);setAddUserOpen(false);setAccountOpen(false);
+    setActive(me.role==="owner"?"dashboard":((me.permissions||["billing","customers","inventory"])[0]||"billing"));
+    setAuthReady(true);
+   }catch(e){
+    clearSession();
+    if(!cancelled){
+     const redirect=encodeURIComponent(window.location.origin+"/sso/callback");
+     window.location.replace("https://puravigal-accounts.onrender.com/?redirect_to="+redirect);
+    }
+   }finally{if(!cancelled)setLoading(false);}
+  })();
+  return ()=>{cancelled=true;};
+ },[]);
+ if(loading)return <div className="loading-screen"><div className="spinner"/><strong>Connecting your Puravigal account…</strong><small>Preparing your secure POS workspace</small></div>;
+ if(!authReady)return <div className="loading-screen"><div className="spinner"/><strong>Redirecting to Puravigal Accounts…</strong><small>Sign in with your common Puravigal account</small></div>;
  const currentUser=user||data.user||seed.user;
- const logout=async()=>{addUserIntent.current=false;setAddUserOpen(false);setAccountOpen(false);try{if(apiMode)await api.logout({refresh_token:localStorage.getItem("puravi_refresh")});}catch{}clearSession();setUser(null);if(apiMode)setAuthReady(false);};
+ const logout=async()=>{addUserIntent.current=false;setAddUserOpen(false);setAccountOpen(false);try{if(apiMode)await api.logout({refresh_token:localStorage.getItem("puravi_refresh")});}catch{}clearSession();setUser(null);window.location.replace("https://puravigal-accounts.onrender.com/");};
  const isSuperAdmin=currentUser.role==="owner";
  const normalPermissions=Array.isArray(currentUser.permissions)?currentUser.permissions:["billing","customers","inventory"];
  const visibleModules=isSuperAdmin?modules:modules.filter(m=>normalPermissions.includes(m.id));
