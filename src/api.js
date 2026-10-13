@@ -24,6 +24,18 @@ async function request(path,options={},retry=true){
   return data;
 }
 export const api={
+  exchangeAccountToken:async(accountAccessToken)=>{
+    if(!API_URL) throw new Error("API_NOT_CONFIGURED");
+    const response=await fetch(API_URL+"/api/auth/sso/exchange",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({account_access_token:accountAccessToken}),
+      credentials:"include"
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(data?.error?.message || "Unable to connect your Puravigal account.");
+    return data;
+  },
   health:()=>request("/api/health"),
   signup:(body)=>request("/api/auth/signup",{method:"POST",body:JSON.stringify(body)}),
   login:(body)=>request("/api/auth/login",{method:"POST",body:JSON.stringify(body)}),
