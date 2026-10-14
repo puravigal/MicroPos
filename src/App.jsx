@@ -353,7 +353,7 @@ export default function App(){
   }
   if(!getAccessToken()){
    const redirect=encodeURIComponent(window.location.origin+"/sso/callback");
-   window.location.replace("https://puravigal-accounts.onrender.com/?redirect_to="+redirect);
+   window.location.replace("https://accounts.puravigal.com/?redirect_to="+redirect);
    return ()=>{cancelled=true;};
   }
   (async()=>{
@@ -366,17 +366,17 @@ export default function App(){
     clearSession();
     if(!cancelled){
      const redirect=encodeURIComponent(window.location.origin+"/sso/callback");
-     window.location.replace("https://puravigal-accounts.onrender.com/?redirect_to="+redirect);
+     window.location.replace("https://accounts.puravigal.com/?redirect_to="+redirect);
     }
    }finally{if(!cancelled)setLoading(false);}
   })();
   return ()=>{cancelled=true;};
  },[]);
  if(loading)return <div className="loading-screen"><div className="spinner"/><strong>Connecting your Puravigal account…</strong><small>Preparing your secure POS workspace</small></div>;
- if(!authReady&&ssoError)return <div className="loading-screen"><strong>Could not connect your Puravigal account</strong><small>{ssoError}</small><button className="primary" onClick={()=>window.location.reload()}>Try again</button><button className="secondary" onClick={()=>window.location.replace("https://puravigal-accounts.onrender.com/")}>Back to Puravigal Accounts</button></div>;
+ if(!authReady&&ssoError)return <div className="loading-screen"><strong>Could not connect your Puravigal account</strong><small>{ssoError}</small><button className="primary" onClick={()=>window.location.reload()}>Try again</button><button className="secondary" onClick={()=>window.location.replace("https://accounts.puravigal.com/")}>Back to Puravigal Accounts</button></div>;
  if(!authReady)return <div className="loading-screen"><div className="spinner"/><strong>Redirecting to Puravigal Accounts…</strong><small>Sign in with your common Puravigal account</small></div>;
  const currentUser=user||data.user||seed.user;
- const logout=async()=>{addUserIntent.current=false;setAddUserOpen(false);setAccountOpen(false);try{if(apiMode)await api.logout({refresh_token:localStorage.getItem("puravi_refresh")});}catch{}clearSession();setUser(null);window.location.replace("https://puravigal-accounts.onrender.com/?logout=true");};
+ const logout=async()=>{addUserIntent.current=false;setAddUserOpen(false);setAccountOpen(false);try{if(apiMode)await api.logout({refresh_token:localStorage.getItem("puravi_refresh")});}catch{}clearSession();setUser(null);window.location.replace("https://accounts.puravigal.com/?logout=true");};
  const isSuperAdmin=currentUser.role==="owner";
  const normalPermissions=Array.isArray(currentUser.permissions)?currentUser.permissions:["billing","customers","inventory"];
  const visibleModules=isSuperAdmin?modules:modules.filter(m=>normalPermissions.includes(m.id));
