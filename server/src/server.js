@@ -59,7 +59,7 @@ app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(helmet({contentSecurityPolicy:{directives:{scriptSrc:["'self'","https://checkout.razorpay.com","https://cdn.razorpay.com"],frameSrc:["'self'","https://checkout.razorpay.com","https://api.razorpay.com"],connectSrc:["'self'","https://api.razorpay.com","https://lumberjack.razorpay.com"]}}}));
 const configuredCorsOrigins=(process.env.CORS_ORIGIN||"").split(",").map(function(x){return x.trim();}).filter(Boolean);
-const sharedLoginOrigins=["https://puravigal.com","https://www.puravigal.com","https://puravigal-accounts.onrender.com"];
+const sharedLoginOrigins=["https://puravigal.com","https://www.puravigal.com","https://accounts.puravigal.com"];
 app.use(cors({
   origin:function(origin,callback){
     if(!origin || configuredCorsOrigins.includes(origin) || sharedLoginOrigins.includes(origin))return callback(null,true);
