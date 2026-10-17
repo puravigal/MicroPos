@@ -5,7 +5,7 @@ import "./styles.css";
 
 const KEY="puravi_pos_v3";
 function centralLogoutMarker(){
- const match=document.cookie.match(/(?:^|;\\s*)pv_central_logout=([^;]+)/);
+ const match=document.cookie.match(/(?:^|;\s*)pv_central_logout=([^;]+)/);
  return match?decodeURIComponent(match[1]):"";
 }
 const seed={products:[
