@@ -372,6 +372,36 @@ export default function App(){
   })();
   return ()=>{cancelled=true;};
  },[]);
+ // Keep an already-open POS tab synchronized with central sign-out/session revocation.
+ useEffect(()=>{
+  if(!isApiConfigured||!user)return;
+  let checking=false;
+  let signedOut=false;
+  const checkSession=async()=>{
+   if(checking||signedOut||document.visibilityState==="hidden")return;
+   checking=true;
+   try{
+    await api.me();
+   }catch(_){
+    signedOut=true;
+    clearSession();
+    setUser(null);
+    setAuthReady(false);
+    window.location.replace("https://accounts.puravigal.com/?logout=true");
+   }finally{
+    checking=false;
+   }
+  };
+  const onVisible=()=>{if(document.visibilityState==="visible")checkSession();};
+  window.addEventListener("focus",checkSession);
+  document.addEventListener("visibilitychange",onVisible);
+  const timer=window.setInterval(checkSession,15000);
+  return ()=>{
+   window.removeEventListener("focus",checkSession);
+   document.removeEventListener("visibilitychange",onVisible);
+   window.clearInterval(timer);
+  };
+ },[user]);
  if(loading)return <div className="loading-screen"><div className="spinner"/><strong>Connecting your Puravigal account…</strong><small>Preparing your secure POS workspace</small></div>;
  if(!authReady&&ssoError)return <div className="loading-screen"><strong>Could not connect your Puravigal account</strong><small>{ssoError}</small><button className="primary" onClick={()=>window.location.reload()}>Try again</button><button className="secondary" onClick={()=>window.location.replace("https://accounts.puravigal.com/")}>Back to Puravigal Accounts</button></div>;
  if(!authReady)return <div className="loading-screen"><div className="spinner"/><strong>Redirecting to Puravigal Accounts…</strong><small>Sign in with your common Puravigal account</small></div>;
