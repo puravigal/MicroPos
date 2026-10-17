@@ -4,6 +4,10 @@ import {api,isApiConfigured,getAccessToken,saveSession,clearSession} from "./api
 import "./styles.css";
 
 const KEY="puravi_pos_v3";
+function centralLogoutMarker(){
+ const match=document.cookie.match(/(?:^|;\\s*)pv_central_logout=([^;]+)/);
+ return match?decodeURIComponent(match[1]):"";
+}
 const seed={products:[
  {id:"demo-1",name:"Sample Product",sku:"SKU-001",barcode:"890000000001",selling_price:100,purchase_price:60,stock:25,min_stock:5,tax_rate:5,category:"General"}
 ],customers:[],suppliers:[],sales:[],purchases:[],returns:[],movements:[],settings:{name:"Puravigal POS Demo",country_code:"IN",currency_code:"INR",timezone:"Asia/Kolkata",tax_mode:"exclusive",gst_enabled:false,tax_registration_number:"",invoice_prefix:"INV",negative_stock_allowed:false},user:{display_name:"Demo Owner",email:"demo@puravigal.com",role:"owner"}};
@@ -321,7 +325,7 @@ function RazorpayUpgrade({user,onClose}){
 
 
 export default function App(){
- const [authReady,setAuthReady]=useState(!isApiConfigured||Boolean(getAccessToken())),[user,setUser]=useState(null),[active,setActive]=useState("dashboard"),[data,setData]=useState(load()),[apiMode,setApiMode]=useState(isApiConfigured),[loading,setLoading]=useState(isApiConfigured),[settings,setSettings]=useState(data.settings),[accountOpen,setAccountOpen]=useState(false),[addUserOpen,setAddUserOpen]=useState(false),[teamRefresh,setTeamRefresh]=useState(0),[upgradeOpen,setUpgradeOpen]=useState(false),[ssoError,setSsoError]=useState(""); const addUserIntent=useRef(false);
+ const [authReady,setAuthReady]=useState(!isApiConfigured||Boolean(getAccessToken())),[user,setUser]=useState(null),[active,setActive]=useState("dashboard"),[data,setData]=useState(load()),[apiMode,setApiMode]=useState(isApiConfigured),[loading,setLoading]=useState(isApiConfigured),[settings,setSettings]=useState(data.settings),[accountOpen,setAccountOpen]=useState(false),[addUserOpen,setAddUserOpen]=useState(false),[teamRefresh,setTeamRefresh]=useState(0),[upgradeOpen,setUpgradeOpen]=useState(false),[ssoError,setSsoError]=useState(""); const addUserIntent=useRef(false); const logoutMarkerAtMount=useRef(centralLogoutMarker()); const forcedCentralLogout=useRef(false);
  const [globalToast,setGlobalToast]=useState(null);
  useEffect(()=>{const onNotification=e=>{const detail=e.detail||{};setGlobalToast({message:detail.message||"Action completed.",type:detail.type||"success",id:Date.now()});};window.addEventListener("pos:notification",onNotification);return()=>window.removeEventListener("pos:notification",onNotification);},[]);
  useEffect(()=>{if(!globalToast)return;const id=window.setTimeout(()=>setGlobalToast(null),4200);return()=>window.clearTimeout(id);},[globalToast?.id]);
@@ -400,6 +404,33 @@ export default function App(){
    window.removeEventListener("focus",checkSession);
    document.removeEventListener("visibilitychange",onVisible);
    window.clearInterval(timer);
+  };
+ },[user]);
+ // A shared parent-domain cookie lets Accounts sign-out reach an already-open POS tab.
+ useEffect(()=>{
+  if(!isApiConfigured||!user)return;
+  const checkCentralLogout=async()=>{
+   if(forcedCentralLogout.current)return;
+   const marker=centralLogoutMarker();
+   if(!marker||marker===logoutMarkerAtMount.current)return;
+   forcedCentralLogout.current=true;
+   try{
+    const refreshToken=localStorage.getItem("puravi_refresh");
+    if(refreshToken)await api.logout({refresh_token:refreshToken});
+   }catch(_){}
+   clearSession();
+   setUser(null);
+   setAuthReady(false);
+   window.location.replace("https://accounts.puravigal.com/?logout=true");
+  };
+  const timer=window.setInterval(checkCentralLogout,1000);
+  window.addEventListener("focus",checkCentralLogout);
+  document.addEventListener("visibilitychange",checkCentralLogout);
+  checkCentralLogout();
+  return ()=>{
+   window.clearInterval(timer);
+   window.removeEventListener("focus",checkCentralLogout);
+   document.removeEventListener("visibilitychange",checkCentralLogout);
   };
  },[user]);
  if(loading)return <div className="loading-screen"><div className="spinner"/><strong>Connecting your Puravigal account…</strong><small>Preparing your secure POS workspace</small></div>;
